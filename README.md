@@ -1,5 +1,8 @@
 # agentic-stack
 
+[![GitHub release](https://img.shields.io/github/v/release/codejunkie99/agentic-stack)](https://github.com/codejunkie99/agentic-stack/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > **One brain, many harnesses.** A portable `.agent/` folder (memory + skills
 > + protocols) that plugs into Claude Code, Cursor, Windsurf, OpenCode,
 > OpenClient, Hermes, or a DIY Python loop — and keeps its knowledge when
@@ -111,8 +114,10 @@ See [`docs/architecture.md`](docs/architecture.md) for the full picture.
 
 ```bash
 crontab -e
-0 3 * * * cd /path/to/project && python3 .agent/memory/auto_dream.py >> .agent/memory/dream.log 2>&1
+0 3 * * * python3 /path/to/project/.agent/memory/auto_dream.py >> /path/to/project/.agent/memory/dream.log 2>&1
 ```
+
+`auto_dream.py` resolves its own paths absolutely, so no `cd` is needed — cron runs it correctly regardless of working directory.
 
 ## License
 

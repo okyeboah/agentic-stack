@@ -4,7 +4,8 @@ from promote import find_recurring_patterns, promote_to_semantic
 from decay import decay_old_entries
 from archive import archive_stale_workspace
 
-ROOT = os.path.dirname(__file__)
+ROOT = os.path.abspath(os.path.dirname(__file__))  # .agent/memory/ — absolute so cron paths hold
+PROJ_ROOT = os.path.dirname(os.path.dirname(ROOT))   # project root
 EPISODIC = os.path.join(ROOT, "episodic/AGENT_LEARNINGS.jsonl")
 PROMOTION_THRESHOLD = 7.0
 
@@ -33,9 +34,8 @@ def _write_entries(entries):
 def _git_snapshot(promoted, decayed, kept):
     msg = f"dream cycle: promoted {promoted}, decayed {decayed}, kept {kept}"
     try:
-        subprocess.run(["git", "add", ROOT], check=False, cwd=os.path.dirname(ROOT))
-        subprocess.run(["git", "commit", "-m", msg], check=False,
-                       cwd=os.path.dirname(ROOT))
+        subprocess.run(["git", "add", ROOT], check=False, cwd=PROJ_ROOT)
+        subprocess.run(["git", "commit", "-m", msg], check=False, cwd=PROJ_ROOT)
     except FileNotFoundError:
         pass
     return msg

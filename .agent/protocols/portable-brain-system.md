@@ -62,7 +62,7 @@ workflow authoring, validation, memory, and delivery integration.
 Run the integrity gate before publication and after a portable-brain upgrade:
 
 ```bash
-python3 .agent/tools/validate_extracted_artifacts.py
+python3 ~/.agent/tools/validate_extracted_artifacts.py
 ```
 
 ## Integrity rules

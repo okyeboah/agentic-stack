@@ -64,7 +64,7 @@ Each line should be a sanitized run record with:
 Run:
 
 ```bash
-python3 .agent/tools/data_flywheel_export.py
+python3 ~/.agent/tools/data_flywheel_export.py
 ```
 
 Outputs go to:

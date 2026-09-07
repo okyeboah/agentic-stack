@@ -32,10 +32,10 @@ When you need to find a specific memory by topic or keyword (not just the
 top-salience entries), use the FTS5 search tool:
 
 ```bash
-python3 .agent/memory/memory_search.py <query>
+python3 ~/.agent/memory/memory_search.py <query>
 ```
 
-This indexes all `.md` and `.jsonl` files under `.agent/memory/` and returns
+This indexes all `.md` and `.jsonl` files under `~/.agent/memory/` and returns
 ranked results with context snippets. Falls back to grep if FTS5 is not
 available. The index auto-rebuilds when files change.
 

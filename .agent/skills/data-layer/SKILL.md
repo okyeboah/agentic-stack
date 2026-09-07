@@ -43,7 +43,7 @@ The goal is local business intelligence for the whole agent suite:
 Default inputs:
 
 ```text
-.agent/memory/episodic/AGENT_LEARNINGS.jsonl
+~/.agent/memory/episodic/AGENT_LEARNINGS.jsonl
 .agent/data-layer/harness-events.jsonl     optional
 .agent/data-layer/cron-runs.jsonl          optional
 .agent/data-layer/category-rules.json      optional
@@ -62,7 +62,7 @@ render the terminal dashboard directly. Do not make users remember flags.
 Prefer passing the user's words to the exporter:
 
 ```bash
-python3 .agent/tools/data_layer_export.py show me last 7 days by hour
+python3 ~/.agent/tools/data_layer_export.py show me last 7 days by hour
 ```
 
 If the user gives no range or bucket, run the default export. Explicit flags
@@ -73,7 +73,7 @@ still work for scripts and should override the natural-language words.
 Run:
 
 ```bash
-python3 .agent/tools/data_layer_export.py --window 30d --bucket day
+python3 ~/.agent/tools/data_layer_export.py --window 30d --bucket day
 ```
 
 The command prints a compact terminal dashboard by default, then writes the

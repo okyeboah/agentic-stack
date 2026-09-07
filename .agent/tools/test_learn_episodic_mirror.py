@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 def _load_learn(base_dir):
-    """Load .agent/tools/learn.py with BASE/CANDIDATES pointed at base_dir.
+    """Load ~/.agent/tools/learn.py with BASE/CANDIDATES pointed at base_dir.
 
     Sibling modules (text.word_set, cluster.pattern_id) are stubbed so the
     test needs no part of the harness beyond learn.py itself.

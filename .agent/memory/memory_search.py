@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Memory Search [BETA] — SQLite FTS5 full-text search over .agent/memory/ files.
+Memory Search [BETA] — SQLite FTS5 full-text search over ~/.agent/memory/ files.
 
-Indexes all .md and .jsonl files under .agent/memory/ and provides ranked
+Indexes all .md and .jsonl files under ~/.agent/memory/ and provides ranked
 keyword search. When SQLite FTS5 is not available, falls back to ripgrep
 (`rg`) if installed, then to grep. Fallback paths are always restricted
 to .md / .jsonl so implementation files never pollute results.
@@ -10,14 +10,14 @@ to .md / .jsonl so implementation files never pollute results.
 BETA + opt-in: disabled by default. Enable via onboarding
 (agentic-stack <harness> --reconfigure) or by setting
     {"memory_search_fts": {"enabled": true}}
-in .agent/memory/.features.json.
+in ~/.agent/memory/.features.json.
 
 Usage:
   python3 memory_search.py <query>       Search memories by keyword
   python3 memory_search.py --rebuild     Force rebuild the index
   python3 memory_search.py --status      Show index status
 
-The index is stored at .agent/memory/.index/memory.db and auto-rebuilds
+The index is stored at ~/.agent/memory/.index/memory.db and auto-rebuilds
 when any memory file changes, is renamed, or is deleted.
 """
 import json
@@ -253,7 +253,7 @@ def cmd_status():
     print(f"Feature: memory_search_fts [BETA] — {tag}")
     if not enabled:
         print("Enable via: agentic-stack <harness> --reconfigure")
-        print("Or edit .agent/memory/.features.json directly.")
+        print("Or edit ~/.agent/memory/.features.json directly.")
         return
     if not check_fts5():
         tool = fallback_tool()
@@ -280,7 +280,7 @@ def _refuse_disabled():
         "memory_search [BETA] is disabled — opt-in only.\n"
         "Enable via onboarding:  agentic-stack <harness> --reconfigure\n"
         "Or set enabled=true for memory_search_fts in "
-        ".agent/memory/.features.json",
+        "~/.agent/memory/.features.json",
         file=sys.stderr,
     )
     sys.exit(2)

@@ -1,6 +1,6 @@
 """Proactive lesson recall for the current intent.
 
-    python3 .agent/tools/recall.py "add a created_at column to orders"
+    python3 ~/.agent/tools/recall.py "add a created_at column to orders"
 
 Surfaces graduated lessons relevant to the described intent, with
 lexical-overlap scores (NOT semantic relevance — see `_score` docstring).

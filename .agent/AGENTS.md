@@ -21,12 +21,12 @@ Check `memory/working/REVIEW_QUEUE.md` at session start. If pending > 10 or
 oldest staged > 7 days, review before substantive work.
 
 Workflow:
-1. `python .agent/tools/list_candidates.py` — pending candidates, sorted by priority
+1. `python ~/.agent/tools/list_candidates.py` — pending candidates, sorted by priority
 2. For each: decide accept / reject / defer based on claim, evidence_ids,
    cluster_size, and any contradictions with existing LESSONS.md
-3. `python .agent/tools/graduate.py <id> --rationale "..."` to accept
-4. `python .agent/tools/reject.py <id> --reason "..."` to reject
-5. `python .agent/tools/reopen.py <id>` to requeue a previously-rejected item
+3. `python ~/.agent/tools/graduate.py <id> --rationale "..."` to accept
+4. `python ~/.agent/tools/reject.py <id> --reason "..."` to reject
+5. `python ~/.agent/tools/reopen.py <id>` to requeue a previously-rejected item
 6. Review in a **batch**, not one-by-one — cross-candidate contradictions
    only surface when you see multiple at once.
 
@@ -73,7 +73,7 @@ portable-brain protocols above. Validate all registered artifacts before
 publication and after an upgrade:
 
 ```bash
-python3 .agent/tools/validate_extracted_artifacts.py
+python3 ~/.agent/tools/validate_extracted_artifacts.py
 ```
 
 ## Host-agent CLI tools (in `tools/`)
@@ -103,7 +103,7 @@ Daily driver, highest-leverage first:
 1. Check memory before decisions you have been corrected on before.
 2. If `REVIEW_QUEUE.md` shows backlog past threshold, handle it before the new task.
 3. Log every significant action to `memory/episodic/AGENT_LEARNINGS.jsonl`
-   via `.agent/tools/memory_reflect.py`.
+   via `~/.agent/tools/memory_reflect.py`.
 4. Update `memory/working/WORKSPACE.md` as you work; archive on completion.
 5. Never hand-edit `memory/semantic/LESSONS.md` — it's rendered from
    `lessons.jsonl`. Use `graduate.py` / `reject.py` / `retract_lesson.py`.

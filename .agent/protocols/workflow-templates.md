@@ -15,7 +15,7 @@ The starter is `.agent/templates/workflow-template.workflow.json`. Validate regi
 with:
 
 ```bash
-python3 .agent/tools/validate_extracted_artifacts.py
+python3 ~/.agent/tools/validate_extracted_artifacts.py
 ```
 
 ## Required sections

@@ -1,6 +1,6 @@
 """One-shot lesson teaching.
 
-    python3 .agent/tools/learn.py "Always serialize timestamps in UTC" \\
+    python3 ~/.agent/tools/learn.py "Always serialize timestamps in UTC" \\
         --rationale "prior bugs from mixed local/UTC comparisons"
 
 Stages a candidate and graduates it in a single command. Removes the
@@ -73,7 +73,7 @@ def _append_episodic_mirror(cid, claim, ts, source="learn"):
         "skill": "learn",
         "action": f"manual-stage:{cid}",
         "result": "success",
-        "detail": f"Manually staged lesson {cid} via .agent/tools/learn.py: {claim!r}",
+        "detail": f"Manually staged lesson {cid} via ~/.agent/tools/learn.py: {claim!r}",
         "pain_score": 1,
         "importance": 6,
         "reflection": "",

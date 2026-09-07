@@ -182,9 +182,9 @@
   "provenance": {
     "author": "portable-brain",
     "sources": [
-      ".agent/protocols/profile-layering.md",
-      ".agent/protocols/tooling-extraction.md",
-      ".agent/protocols/workflow-templates.md"
+      "~/.agent/protocols/profile-layering.md",
+      "~/.agent/protocols/tooling-extraction.md",
+      "~/.agent/protocols/workflow-templates.md"
     ],
     "observedAt": "2026-08-09T00:00:00Z",
     "supersedes": null

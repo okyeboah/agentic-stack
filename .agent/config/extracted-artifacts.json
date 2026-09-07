@@ -10,7 +10,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/fleet-management.md",
+      "path": "~/.agent/protocols/fleet-management.md",
       "triggers": ["fleet audit", "fleet upgrade", "multi-repository profile rollout"],
       "sourceState": "managed"
     },
@@ -21,7 +21,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/tool_schemas/fleet-manifest.schema.json",
+      "path": "~/.agent/protocols/tool_schemas/fleet-manifest.schema.json",
       "triggers": ["fleet manifest", "validate fleet ownership"],
       "sourceState": "managed"
     },
@@ -32,7 +32,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/portable-brain-system.md",
+      "path": "~/.agent/protocols/portable-brain-system.md",
       "triggers": ["portable brain", "unified agent system", "system integrity"],
       "sourceState": "managed"
     },
@@ -43,7 +43,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/profile-layering.md",
+      "path": "~/.agent/protocols/profile-layering.md",
       "triggers": ["profile resolution", "project identity", "global and local memory"],
       "sourceState": "managed"
     },
@@ -54,7 +54,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/tooling-extraction.md",
+      "path": "~/.agent/protocols/tooling-extraction.md",
       "triggers": ["repetitive work", "automate repeated task", "extract tooling"],
       "sourceState": "managed"
     },
@@ -65,7 +65,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/workflow-templates.md",
+      "path": "~/.agent/protocols/workflow-templates.md",
       "triggers": ["write workflow template", "workflow authoring", "workflow overlay"],
       "sourceState": "managed"
     },
@@ -76,7 +76,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/protocols/tool_schemas/workflow-template.schema.json",
+      "path": "~/.agent/protocols/tool_schemas/workflow-template.schema.json",
       "triggers": ["validate workflow", "workflow schema"],
       "sourceState": "managed"
     },
@@ -98,7 +98,7 @@
       "version": "1.0.0",
       "status": "active",
       "owner": "portable-brain",
-      "path": ".agent/tools/validate_extracted_artifacts.py",
+      "path": "~/.agent/tools/validate_extracted_artifacts.py",
       "triggers": ["validate portable brain", "validate workflow", "artifact registry integrity"],
       "sourceState": "managed"
     }

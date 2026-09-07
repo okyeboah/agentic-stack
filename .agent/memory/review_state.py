@@ -4,7 +4,7 @@ Each candidate JSON under memory/candidates/ carries:
   status:    staged | provisional | accepted | rejected | superseded
   decisions: append-only list of {ts, action, reviewer, notes, **fields}
 
-Host-agent CLI tools (.agent/tools/graduate.py, reject.py, reopen.py) call
+Host-agent CLI tools (~/.agent/tools/graduate.py, reject.py, reopen.py) call
 into this module to transition state. Rejection and re-stage preserve full
 history so a candidate that keeps reappearing is visibly churning rather
 than looking novel each time.
@@ -246,9 +246,9 @@ def write_review_queue_summary(candidates_dir, summary_path):
     if oldest:
         lines.append(f"**Oldest staged:** {oldest}")
     lines.append("")
-    lines.append("Run `python .agent/tools/list_candidates.py` for detail, then:")
-    lines.append("- `python .agent/tools/graduate.py <id> --rationale \"...\"` to accept")
-    lines.append("- `python .agent/tools/reject.py <id> --reason \"...\"` to reject")
+    lines.append("Run `python ~/.agent/tools/list_candidates.py` for detail, then:")
+    lines.append("- `python ~/.agent/tools/graduate.py <id> --rationale \"...\"` to accept")
+    lines.append("- `python ~/.agent/tools/reject.py <id> --reason \"...\"` to reject")
     lines.append("- Review in a batch so cross-candidate contradictions are caught.")
     lines.append("")
     lines.append("## Priority order (top 10)")

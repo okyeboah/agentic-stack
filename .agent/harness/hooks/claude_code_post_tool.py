@@ -23,14 +23,14 @@ dream cycle produced zero candidates. This version:
   - calls the same log_execution / on_failure path as the rest of the harness
 
 Drop-in for the old command in settings.json:
-    "command": "python3 .agent/harness/hooks/claude_code_post_tool.py"
+    "command": "python3 ~/.agent/harness/hooks/claude_code_post_tool.py"
 """
 import json, os, re, sys
 
 # Resolve .agent/ root from this file's location:
-#   __file__  = .agent/harness/hooks/claude_code_post_tool.py
-#   UP 1      = .agent/harness/hooks/
-#   UP 2      = .agent/harness/
+#   __file__  = ~/.agent/harness/hooks/claude_code_post_tool.py
+#   UP 1      = ~/.agent/harness/hooks/
+#   UP 2      = ~/.agent/harness/
 #   UP 3      = .agent/
 HERE = os.path.dirname(os.path.abspath(__file__))
 AGENT_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -54,7 +54,7 @@ from hooks.on_failure import on_failure          # noqa: E402
 # Rule of thumb: if getting it wrong on a project you've never seen before
 # would cause data loss, a production outage, or a security incident, it
 # belongs here. Service names (supabase, stripe, vercel…) do NOT belong
-# here — put those in .agent/protocols/hook_patterns.json.
+# here — put those in ~/.agent/protocols/hook_patterns.json.
 _UNIVERSAL_HIGH = [
     r'deploy|deployment|release|rollback',
     r'migration|migrate',
@@ -75,13 +75,13 @@ _UNIVERSAL_MEDIUM = [
 
 
 def _load_user_patterns() -> tuple[list[str], list[str]]:
-    """Read extra high/medium patterns from .agent/protocols/hook_patterns.json.
+    """Read extra high/medium patterns from ~/.agent/protocols/hook_patterns.json.
 
     Returns (high_extras, medium_extras) — lists of raw regex fragments.
     Missing file or bad JSON is silently ignored so the hook never fails
     because a config file is absent or malformed.
 
-    The config file lives at .agent/protocols/hook_patterns.json and is
+    The config file lives at ~/.agent/protocols/hook_patterns.json and is
     owned entirely by the user. Add your own service names, CLI tools, and
     domain terms there — not in this file.
     """

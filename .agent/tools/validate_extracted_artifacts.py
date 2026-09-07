@@ -202,7 +202,7 @@ def validate_workflow(
             kind, artifact_id = match.groups()
             if kind in {"protocol", "tool", "workflow", "template"} and artifact_id not in registry_ids:
                 errors.append(f"{label} step {step_id} references unregistered artifact: {artifact_id}")
-            if kind == "skill" and not (repo_root / ".agent/skills" / artifact_id / "SKILL.md").is_file():
+            if kind == "skill" and not (repo_root / "~/.agent/skills" / artifact_id / "SKILL.md").is_file():
                 errors.append(f"{label} step {step_id} references missing skill: {artifact_id}")
     for value, count in Counter(step_ids).items():
         if count > 1:

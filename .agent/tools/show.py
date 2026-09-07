@@ -1,6 +1,6 @@
 """Agent state, terminal dashboard. One command, everything that matters.
 
-    python3 .agent/tools/show.py
+    python3 ~/.agent/tools/show.py
 
 Designed to be screenshot-worthy: colored, boxed, spark-graphed, width-aware.
 Zero deps (stdlib only). Respects NO_COLOR env var. Runs in any terminal
@@ -499,9 +499,9 @@ def render(width=None, json_out=False, plain=False):
 
     # ── footer hint ──
     out.append("")
-    out.append(paint("  learn:  ", C.DIM) + paint("python3 .agent/tools/learn.py \"…\"", C.BRIGHT_CYAN))
-    out.append(paint("  recall: ", C.DIM) + paint("python3 .agent/tools/recall.py \"…\"", C.BRIGHT_CYAN))
-    out.append(paint("  dream:  ", C.DIM) + paint("python3 .agent/memory/auto_dream.py", C.BRIGHT_CYAN))
+    out.append(paint("  learn:  ", C.DIM) + paint("python3 ~/.agent/tools/learn.py \"…\"", C.BRIGHT_CYAN))
+    out.append(paint("  recall: ", C.DIM) + paint("python3 ~/.agent/tools/recall.py \"…\"", C.BRIGHT_CYAN))
+    out.append(paint("  dream:  ", C.DIM) + paint("python3 ~/.agent/memory/auto_dream.py", C.BRIGHT_CYAN))
 
     return "\n".join(out)
 

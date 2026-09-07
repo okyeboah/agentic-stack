@@ -32,7 +32,7 @@ stop until they confirm.
 ## Opt-in MCP setup
 
 This beta does not install MCP wiring during default adapter setup. After the
-user enables `tldraw` in `.agent/memory/.features.json`, they must add the
+user enables `tldraw` in `~/.agent/memory/.features.json`, they must add the
 server to their harness MCP config. Use this local block as the source of truth:
 
 ```json
@@ -89,7 +89,7 @@ recurring diagrams, reference material), snapshot it:
 
 ```bash
 # fetch current shapes via MCP get_canvas and pipe the JSON in
-python3 .agent/skills/tldraw/store.py snapshot \
+python3 ~/.agent/skills/tldraw/store.py snapshot \
     --label "auth-flow-v1" --tags architecture,auth \
     --note "login + refresh token flow agreed 2026-04-21"
 ```

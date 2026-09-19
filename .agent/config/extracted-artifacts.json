@@ -152,6 +152,49 @@
         "delete remote branch safely"
       ],
       "sourceState": "managed"
+    },
+    {
+      "id": "computer-schema",
+      "type": "schema",
+      "scope": "global",
+      "version": "1.0.0",
+      "status": "active",
+      "owner": "portable-brain",
+      "path": ".agent/protocols/tool_schemas/computer.schema.json",
+      "triggers": [
+        "computer use",
+        "desktop control",
+        "computer tool schema"
+      ],
+      "sourceState": "managed"
+    },
+    {
+      "id": "computer-use-walkthrough-template",
+      "type": "template",
+      "scope": "global",
+      "version": "1.0.0",
+      "status": "active",
+      "owner": "portable-brain",
+      "path": ".agent/templates/computer-use/walkthrough.md",
+      "triggers": [
+        "computer walkthrough",
+        "desktop task template"
+      ],
+      "sourceState": "managed"
+    },
+    {
+      "id": "computer-use-ui-verify-template",
+      "type": "template",
+      "scope": "global",
+      "version": "1.0.0",
+      "status": "active",
+      "owner": "portable-brain",
+      "path": ".agent/templates/computer-use/ui-verify.md",
+      "triggers": [
+        "ui verify",
+        "visual verification template"
+      ],
+      "sourceState": "managed"
     }
   ]
 }

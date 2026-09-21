@@ -7,6 +7,13 @@ lexical-overlap scores (NOT semantic relevance — see `_score` docstring).
 Makes the *invisible* part of the agent (what memory is informing the
 next action) *visible and auditable*.
 
+Two-stage retrieval, opt-in: `--rerank laya` reorders the top lexical pool
+by a local typed-decision relevance probability (laya-mlx, Apple Silicon,
+no cloud — see laya_client.py), so a lesson that shares no vocabulary with
+the intent can still surface. Lexical scores stay in every output row for
+audit, and any laya problem falls back to the lexical order with the
+reason recorded in meta.
+
 Reads the structured lessons.jsonl source of truth if present; falls back
 to parsing LESSONS.md for accepted bullets on fresh repos where no lesson
 has been graduated yet.
@@ -186,7 +193,64 @@ def _merge_sources():
     return merged, (not structured)
 
 
-def recall(intent, top_k=3, min_score=0.01):
+RERANK_POOL = 20
+
+
+def _laya_rerank(intent, scored, pool):
+    """Reorder the top lexical pool by local Laya relevance (noul P(true)).
+
+    Lexical overlap misses any semantic match with different vocabulary
+    (see _score); one local typed decision per pooled lesson reorders it.
+    The lexical score stays in every output row for audit. Never raises:
+    on any laya problem the lexical order survives and the reason lands in
+    the returned meta.
+    """
+    meta = {"reranker": "laya", "rerank_pool": pool}
+    keep = [(s, None, l) for s, l in scored]
+    if not scored:
+        return keep, meta
+    try:
+        import laya_client
+    except ImportError as exc:
+        meta["rerank_error"] = f"laya_client import failed: {exc}"
+        return keep, meta
+    ok, where = laya_client.available()
+    if not ok:
+        meta["rerank_error"] = where
+        return keep, meta
+    pool_rows = scored[:max(1, pool)]
+    requests = []
+    for _, lesson in pool_rows:
+        state = f"Agent intent: {intent}\n\nLesson claim: {lesson.get('claim', '')}"
+        conditions = lesson.get("conditions") or []
+        if conditions:
+            state += "\nLesson conditions: " + "; ".join(conditions)
+        requests.append({"state": state, "questions": {
+            "relevant": {
+                "type": "noul",
+                "instructions": ("Is this lesson relevant and worth acting on "
+                                 "for this intent? true if relevant."),
+            },
+        }})
+    results = laya_client.ask(requests)
+    if results is None or len(results) != len(requests):
+        meta["rerank_error"] = "laya worker returned no or misaligned results; lexical order kept"
+        return keep, meta
+    merged = []
+    for (score, lesson), result in zip(pool_rows, results):
+        answers = result.get("answers") if isinstance(result, dict) else None
+        relevance = None
+        if isinstance(answers, dict):
+            relevant = answers.get("relevant")
+            if isinstance(relevant, dict) and isinstance(relevant.get("noul"), (int, float)):
+                relevance = float(relevant["noul"])
+        merged.append((score, relevance, lesson))
+    out = merged + keep[len(pool_rows):]
+    out.sort(key=lambda row: (-(row[1] if row[1] is not None else 0.0), -row[0]))
+    return out, meta
+
+
+def recall(intent, top_k=3, min_score=0.01, rerank=None, rerank_pool=RERANK_POOL):
     lessons, only_md = _merge_sources()
 
     qwords = word_set(intent)
@@ -196,8 +260,15 @@ def recall(intent, top_k=3, min_score=0.01):
         if score >= min_score:
             scored.append((score, l))
     scored.sort(key=lambda x: -x[0])
-    top = [
-        {
+
+    rows = [(s, None, l) for s, l in scored]
+    rerank_meta = None
+    if rerank == "laya":
+        rows, rerank_meta = _laya_rerank(intent, scored, rerank_pool)
+
+    top = []
+    for s, relevance, l in rows[:top_k]:
+        row = {
             "id": l.get("id"),
             "claim": l.get("claim"),
             "conditions": l.get("conditions", []),
@@ -205,21 +276,25 @@ def recall(intent, top_k=3, min_score=0.01):
             "source": l.get("_source", "unknown"),
             "accepted_at": l.get("accepted_at"),
         }
-        for s, l in scored[:top_k]
-    ]
+        if relevance is not None:
+            row["laya_relevance"] = round(relevance, 4)
+        top.append(row)
     # Meta reports the mix of sources that contributed to the RESULT set,
     # not a global "did we fall back" bit. When both sources contribute,
     # the caller sees both — no lying by omission.
     source_counts = {}
     for r in top:
         source_counts[r["source"]] = source_counts.get(r["source"], 0) + 1
-    return top, {
+    meta = {
         "intent": intent,
         "considered": len(lessons),
         "returned": len(top),
         "source_counts": source_counts,
         "only_md_available": only_md,
     }
+    if rerank_meta:
+        meta.update(rerank_meta)
+    return top, meta
 
 
 def log_recall(intent, result, meta):
@@ -233,6 +308,10 @@ def log_recall(intent, result, meta):
             "source_counts": meta.get("source_counts", {}),
             "only_md_available": meta.get("only_md_available", False),
         }
+        if meta.get("reranker"):
+            detail["reranker"] = meta["reranker"]
+        if meta.get("rerank_error"):
+            detail["rerank_error"] = meta["rerank_error"]
         reflect(
             "proactive-recall",
             f"recall:{intent[:80]}",
@@ -261,10 +340,16 @@ def format_pretty(intent, result, meta):
     lines.append("")
     for i, r in enumerate(result, 1):
         src = r.get("source", "unknown")
-        score = r.get("lexical_overlap", r.get("relevance", 0))
-        lines.append(
-            f"  [{i}] lexical_overlap={score}  {r['claim']}  [{src}]"
-        )
+        lexical = r.get("lexical_overlap", r.get("relevance", 0))
+        relevance = r.get("laya_relevance")
+        if relevance is not None:
+            lines.append(
+                f"  [{i}] laya={relevance:.2f} lexical_overlap={lexical}  {r['claim']}  [{src}]"
+            )
+        else:
+            lines.append(
+                f"  [{i}] lexical_overlap={lexical}  {r['claim']}  [{src}]"
+            )
         if r["conditions"]:
             lines.append(f"      conditions: {', '.join(r['conditions'])}")
     return "\n".join(lines)
@@ -274,11 +359,18 @@ def main():
     p = argparse.ArgumentParser(description="Surface relevant lessons for an intent.")
     p.add_argument("intent", help="Free-text description of what you're about to do.")
     p.add_argument("--top", type=int, default=3)
+    p.add_argument("--rerank", choices=["none", "laya"], default="none",
+                   help="Reorder the top lexical pool by local Laya relevance "
+                        "(needs the laya-mlx venv; see laya_client.py).")
+    p.add_argument("--rerank-pool", type=int, default=RERANK_POOL,
+                   help="How many lexical candidates the reranker sees.")
     p.add_argument("--json", action="store_true", help="Emit JSON instead of pretty.")
     p.add_argument("--quiet", action="store_true", help="Don't log to episodic.")
     args = p.parse_args()
 
-    result, meta = recall(args.intent, top_k=args.top)
+    rerank = None if args.rerank == "none" else args.rerank
+    result, meta = recall(args.intent, top_k=args.top, rerank=rerank,
+                          rerank_pool=args.rerank_pool)
     if not args.quiet:
         log_recall(args.intent, result, meta)
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Advisory triage for staged review-queue candidates, scored locally by Laya.
 
-    python3 .agent/tools/laya_triage.py                 # score every staged candidate
-    python3 .agent/tools/laya_triage.py --limit 10 --json
+    python3 ~/.agent/tools/laya_triage.py                 # score every staged candidate
+    python3 ~/.agent/tools/laya_triage.py --limit 10 --json
 
 Read-only. The dream cycle stages candidates mechanically (auto_dream.py);
 the heuristic prefilter (validate.py) catches only exact duplicates; the

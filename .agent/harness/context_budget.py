@@ -88,8 +88,8 @@ def _lines_up_to_budget(lines, char_budget):
     return "".join(out)
 
 
-def _top_lessons(query, lessons_md, char_budget=8000):
-    """Rank accepted lesson bullets by query overlap; fall back to original order.
+def _accepted_lesson_lines(lessons_md):
+    """Accepted lesson bullets from rendered markdown, filter shared with validate.
 
     Only terminal (status=accepted) lessons reach the host agent as retrievable
     guidance. Provisional, legacy, and superseded bullets exist in LESSONS.md
@@ -115,6 +115,66 @@ def _top_lessons(query, lessons_md, char_budget=8000):
             continue
         if text:
             lines.append(text)
+    return lines
+
+
+LAYA_LESSON_POOL = 40
+LAYA_KEEP_P = 0.5
+
+
+def _laya_filter(query, pool):
+    """Keep+order pool entries the local model scores relevant (noul >= 0.5).
+
+    Two-stage selection: lexical overlap picks the cheap pool, one local
+    typed decision per entry (~13 ms, batched in one subprocess) decides
+    what enters the token budget. Returns None on ANY laya problem — the
+    caller then keeps its deterministic order; a broken model must never
+    blank out context that lexical selection would have provided.
+    """
+    try:
+        import laya_client
+    except ImportError:
+        return None
+    ok, _where = laya_client.available()
+    if not ok:
+        return None
+    requests = [{"state": (f"Task the agent is about to do: {query[:400]}\n\n"
+                           f"Lesson claim: {line[:400]}"),
+                 "questions": {"relevant": {
+                     "type": "noul",
+                     "instructions": ("Is this lesson relevant and worth loading "
+                                      "into context for this task? true if relevant."),
+                 }}} for line in pool]
+    results = laya_client.ask(requests)
+    if results is None or len(results) != len(requests):
+        return None
+    scored = []
+    for line, res in zip(pool, results):
+        answers = res.get("answers") if isinstance(res, dict) else None
+        p = 0.0
+        if isinstance(answers, dict):
+            rel = answers.get("relevant")
+            if isinstance(rel, dict) and isinstance(rel.get("noul"), (int, float)):
+                p = float(rel["noul"])
+        scored.append((p, line))
+    scored.sort(key=lambda x: -x[0])
+    return [line for p, line in scored if p >= LAYA_KEEP_P]
+
+
+def _top_lessons(query, lessons_md, char_budget=8000):
+    """Rank accepted lesson bullets by query overlap; fall back to original order.
+
+    Selection is two-stage: lexical overlap picks a cheap pool, then the
+    local typed-decision model (when its venv is installed — see
+    laya_client.py) decides which pool entries earn budget, so a lesson
+    worded differently from the query can still surface and vocabulary-
+    matching noise does not. Any laya problem falls back to the pure
+    lexical order; nothing here raises.
+
+    Only terminal (status=accepted) lessons are eligible (see
+    _accepted_lesson_lines).
+    """
+    lines = _accepted_lesson_lines(lessons_md)
     if not lines:
         # No accepted lessons → return empty. Returning raw markdown would
         # leak the non-terminal content the filter is designed to block.
@@ -127,9 +187,20 @@ def _top_lessons(query, lessons_md, char_budget=8000):
     scored = [(len(query_words & word_set(l)), i, l) for i, l in enumerate(lines)]
     relevant = sorted([s for s in scored if s[0] > 0], key=lambda s: (-s[0], s[1]))
 
-    if not relevant:
-        return _lines_up_to_budget(lines, char_budget)
-    return _lines_up_to_budget([l for _, _, l in relevant], char_budget)
+    if relevant:
+        pool = [l for _, _, l in relevant[:LAYA_LESSON_POOL]]
+        filtered = _laya_filter(query, pool)
+        return _lines_up_to_budget(filtered if filtered is not None else pool,
+                                   char_budget)
+
+    # Zero lexical overlap. The old fallback injected the first char_budget
+    # of the list in original order — ~2k tokens of arbitrary lessons the
+    # query gave no signal for. Now laya may still find relevance; without
+    # it, inject nothing (recall.py remains the explicit retrieval path).
+    filtered = _laya_filter(query, lines[:LAYA_LESSON_POOL])
+    if not filtered:
+        return ""
+    return _lines_up_to_budget(filtered, char_budget)
 
 
 def build_context(user_input: str, budget: int = 88000):

@@ -32,6 +32,31 @@ string-eval shells: `sh -c`, `zsh -c`, `eval`. Hooks never rewrite those,
 so refusal only happens on explicit `ztk run`; run the command unwrapped
 instead.
 
+## Keeping the savings up (measured 2026-09-21)
+
+The savings % declines only when raw volume arrives in commands ztk does not
+recognize — per-command rates for known commands improved all month while
+the overall average fell 63% → 25%. The drivers, in order of size:
+
+1. **docker is unrecognized** (70M raw tokens in September, 0% saved — 71%
+   of everything kept). Never run bare `docker build` / `docker compose up`
+   / `docker logs` in an agent shell. Pipe to a file and read the tail:
+   ```bash
+   docker build -t img . > /tmp/docker-build.log 2>&1; tail -60 /tmp/docker-build.log
+   ```
+   `tail`/`head` compress well (82–91%); the build log never reaches context.
+2. **`cat` has a structural ceiling (~21%)** — file contents cannot be
+   losslessly crushed further. Do not `cat` whole files into a shell; use
+   the harness Read tool, or `sed -n 'A,Bp'` for targeted ranges. cat was
+   12.7% of September's kept tokens.
+3. **`python3` script output passes raw** (9.7M at 0%). Scripts that print
+   tables should print the summary and write the full dump to a file.
+
+Unrecognized commands are recorded in `~/.local/share/ztk/savings.log`
+(`ts, cmd, in, out, pct, exit`) — check it before assuming rates fell.
+Compression policy is baked into the binary (no config file); adding a
+command class (docker first) is an upstream change.
+
 ## Inspect savings
 
 ```bash

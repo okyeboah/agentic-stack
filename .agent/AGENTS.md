@@ -80,7 +80,16 @@ python3 .agent/tools/validate_extracted_artifacts.py
 Daily driver, highest-leverage first:
 - `recall.py "<intent>"` — surface graduated lessons relevant to what
   you're about to do. **Run before deploy / migration / timestamp / debug /
-  refactor work.** This is how lessons cross harnesses.
+  refactor work.** This is how lessons cross harnesses. Add `--rerank laya`
+  to reorder the top pool semantically with the local typed-decision model
+  (~13 ms/lesson, no cloud; falls back to lexical when the venv is absent).
+- `laya_triage.py` — advisory local-model triage of the review queue
+  before a review batch (junk / generic / near-duplicate / priority, fully
+  local); `graduate.py` and `reject.py` stay the decision path.
+- `jev_compact.py transcript.jsonl` — prune a transcript's stale tool
+  results verbatim with fast-jev (Claude Code gets this via the plugin;
+  every other harness runs this). Use for handoffs, session evidence, and
+  flywheel exports. `TYPESAFE_API_KEY` from the environment only.
 - `learn.py "<rule>" --rationale "<why>"` — teach the agent a new lesson
   in one shot (stage + graduate + render). For rules you already know.
 - `show.py` — one-screen dashboard of brain state: episodes, candidates,

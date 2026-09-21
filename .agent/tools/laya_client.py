@@ -8,7 +8,7 @@ weight fetch the first time a checkpoint is used (the worker sets
 HF_HUB_OFFLINE for every run after that).
 
 Interpreter resolution order: $LAYA_PYTHON, then
-~/dev-repo/laya-mlx/.venv/bin/python. An unavailable environment is reported,
+$HOME/dev-repo/laya-mlx/.venv/bin/python. An unavailable environment is reported,
 never raised — callers degrade to their non-laya behavior (recall keeps its
 lexical order, triage exits 2 with the reason).
 """
@@ -37,7 +37,7 @@ def available():
     interpreter = venv_python()
     if not interpreter:
         return False, ("no laya venv found (set LAYA_PYTHON or create "
-                       "~/dev-repo/laya-mlx/.venv)")
+                       "$HOME/dev-repo/laya-mlx/.venv)")
     if not os.path.exists(WORKER):
         return False, f"worker missing: {WORKER}"
     return True, interpreter

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Jev compaction for any harness: prune stale tool results, keep the rest verbatim.
 
-    cat transcript.jsonl | python3 .agent/tools/jev_compact.py > compact.jsonl
-    python3 .agent/tools/jev_compact.py transcript.json --json
-    python3 .agent/tools/jev_compact.py handoff.json --keep-recent 8 --min-reduction 0.3
+    cat transcript.jsonl | python3 ~/.agent/tools/jev_compact.py > compact.jsonl
+    python3 ~/.agent/tools/jev_compact.py transcript.json --json
+    python3 ~/.agent/tools/jev_compact.py handoff.json --keep-recent 8 --min-reduction 0.3
 
 fast-jev-compaction replaces lossy summarize-compaction with Jev-scored
 pruning: every tool call/result is scored (does the call still matter, is

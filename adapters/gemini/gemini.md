@@ -7,7 +7,8 @@ and protocols live in `.agent/`.
 1. `.agent/AGENTS.md` — the map of the whole brain
 2. `.agent/memory/personal/PREFERENCES.md` — how the user works
 3. `.agent/memory/working/REVIEW_QUEUE.md` — pending lessons awaiting review
-4. `.agent/memory/semantic/LESSONS.md` — what we've already learned
+4. Lesson recall — NEVER read `semantic/LESSONS.md` whole (~108k tokens):
+   `python3 .agent/tools/recall.py "<intent>" --rerank laya`
 5. `.agent/protocols/permissions.md` — hard constraints, read before any tool call
 
 ## Before every non-trivial action — recall first
@@ -27,7 +28,9 @@ lesson would be violated by your intended action, stop and explain why.
 ## While working
 
 ### Skills
-Read `.agent/skills/_index.md` and load the full `SKILL.md` for any skill
+Skill discovery: grep `.agent/skills/_manifest.jsonl` for your trigger and
+load only that `SKILL.md`. NEVER read `_index.md` (~11k tokens) or
+`_manifest.jsonl` (~43k) whole —
 whose triggers match the task. Don't skip this — skills carry constraints
 the permissions file doesn't cover.
 

@@ -6,11 +6,11 @@ prompt. This file points it at the portable brain in `.agent/`.
 ## Startup (read in order)
 1. `.agent/AGENTS.md` — the map
 2. `.agent/memory/personal/PREFERENCES.md` — user conventions
-3. `.agent/memory/semantic/LESSONS.md` — distilled lessons
+3. Lesson recall — never read LESSONS.md whole: `python3 .agent/tools/recall.py "<intent>" --rerank laya`
 4. `.agent/protocols/permissions.md` — hard rules
 
 ## Skills
-- Read `.agent/skills/_index.md` first.
+- Skill discovery: grep your trigger in `.agent/skills/_manifest.jsonl`, then load only that `SKILL.md` (never read `_index.md` whole).
 - Load `.agent/skills/<name>/SKILL.md` only when triggers match.
 
 ## Recall before non-trivial tasks

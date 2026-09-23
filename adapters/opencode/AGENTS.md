@@ -6,7 +6,7 @@ it at the portable brain in `.agent/`.
 ## Before any action
 1. Read `.agent/AGENTS.md` (the map).
 2. Read `.agent/memory/personal/PREFERENCES.md`.
-3. Read `.agent/memory/semantic/LESSONS.md`.
+3. Lesson recall — never read LESSONS.md whole: `python3 .agent/tools/recall.py "<intent>" --rerank laya`
 4. Read `.agent/protocols/permissions.md`.
 
 ## Recall before non-trivial tasks
@@ -21,7 +21,7 @@ Surface results in a `Consulted lessons before acting:` block and follow
 them.
 
 ## Skills
-- Use `.agent/skills/_index.md` for discovery.
+- Skill discovery: grep your trigger in `.agent/skills/_manifest.jsonl`, then load only that `SKILL.md` (never read `_index.md` whole).
 - Load `.agent/skills/<name>/SKILL.md` only when the skill's triggers match.
 
 ## Memory

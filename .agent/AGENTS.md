@@ -9,7 +9,8 @@ Antigravity) can mount it and get the same memory, skills, and protocols.
 - `memory/working/WORKSPACE.md` — current task state
 - `memory/working/REVIEW_QUEUE.md` — pending candidate lessons waiting for you
 - `memory/semantic/DECISIONS.md` — past architectural choices
-- `memory/semantic/LESSONS.md` — distilled patterns (rendered from `lessons.jsonl`)
+- `memory/semantic/LESSONS.md` — distilled patterns (rendered from `lessons.jsonl`);
+  never read whole (~108k tok) — recall via `tools/recall.py --rerank laya`
 - `memory/episodic/AGENT_LEARNINGS.jsonl` — raw experience log (top-k by salience)
 
 ## Review Queue (host-agent responsibility)
@@ -36,7 +37,8 @@ judgment. Rationale is required for graduation — rubber-stamped promotions
 are the exact failure mode this layer prevents.
 
 ## Skills
-- `skills/_index.md` — read first for discovery
+- skill discovery — grep `skills/_manifest.jsonl` for your trigger, load only that
+  `SKILL.md` (never read `_index.md` (~11k tok) or `_manifest.jsonl` (~43k tok) whole)
 - `skills/_manifest.jsonl` — machine-readable skill metadata
 - Load a full `SKILL.md` only when its triggers match the current task
 - Every skill has a self-rewrite hook; invoke it after failures
@@ -119,3 +121,6 @@ Daily driver, highest-leverage first:
 6. Follow `protocols/permissions.md`. Blocked means blocked.
 7. When a self-rewrite hook fires, propose conservative edits only.
 8. The harness is dumb on purpose. Reasoning lives in skills + the host agent.
+9. Context economy: never read `skills/_index.md`, `skills/_manifest.jsonl`, or
+   `memory/semantic/LESSONS.md` whole — recall, manifest grep, and progressive
+   loads exist for a reason; subagents need fresh sessions to see AGENTS.md edits.

@@ -9,7 +9,7 @@ the portable brain in `.agent/`.
 ## Startup (read in order)
 1. `.agent/AGENTS.md` — the map
 2. `.agent/memory/personal/PREFERENCES.md` — user conventions
-3. `.agent/memory/semantic/LESSONS.md` — distilled lessons
+3. Lesson recall — never read LESSONS.md whole: `python3 .agent/tools/recall.py "<intent>" --rerank laya`
 4. `.agent/protocols/permissions.md` — hard rules
 
 ## Skills

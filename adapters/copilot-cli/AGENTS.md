@@ -10,14 +10,13 @@ brain in `.agent/`.
 ## Startup (read in order)
 1. `.agent/AGENTS.md` — the map of the whole brain
 2. `.agent/memory/personal/PREFERENCES.md` — user conventions
-3. `.agent/memory/semantic/LESSONS.md` — distilled lessons
+3. Lesson recall — never read LESSONS.md whole: `python3 .agent/tools/recall.py "<intent>" --rerank laya`
 4. `.agent/protocols/permissions.md` — hard rules, read before any tool call
 
 ## Skills
 Skills live in `.agent/skills/` (mirrored to `.github/skills/` for native
-`/skills` support). Read `.agent/skills/_index.md` and load the full
-`SKILL.md` for any skill whose triggers match the task. Don't skip this —
-skills carry constraints the permissions file doesn't cover.
+`/skills` support). Skill discovery: grep your trigger in `.agent/skills/_manifest.jsonl`, then load only that `SKILL.md` (never read `_index.md` whole).
+Don't skip this — skills carry constraints the permissions file doesn't cover.
 
 Edit skills in `.agent/skills/` — `.github/skills/` is a mirror; re-running
 `./install.sh copilot-cli` will sync it back.

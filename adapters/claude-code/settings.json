@@ -22,8 +22,29 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v ztk >/dev/null 2>&1 || exit 0; ztk rewrite --skip-permissions"
+          }
+        ]
+      }
     ]
   },
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.agent/harness/hooks/conventions_first.py\""
+          }
+        ]
+      }
+    ],
   "permissions": {
     "deny": [
       "Bash(git push --force*)",

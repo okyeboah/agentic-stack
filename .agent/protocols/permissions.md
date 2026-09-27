@@ -28,6 +28,8 @@ invocation. Humans edit this file; the agent does not.
 - Delete entries from episodic or semantic memory (archive, don't delete).
 
 ## Approved external domains
+  # OpenRouter model catalog + auth/key quota checks (or-free-models skill)
+- `openrouter.ai`
 - `api.github.com`
 - `registry.npmjs.org`
 - `pypi.org`

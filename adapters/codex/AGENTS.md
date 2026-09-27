@@ -44,3 +44,15 @@ them.
 ## Hard rules
 - No force push to `main`, `production`, `staging`.
 - No modification of `.agent/protocols/permissions.md`.
+
+<!-- ztk-manual-use:v1 -->
+## ztk output compression (manual)
+
+This harness has no ztk pre-tool hook. For commands likely to produce large
+output, wrap them manually:
+
+- `ztk run <command>` — compress output before it reaches context
+- `ztk run --raw <command>` — exact output when another command will parse it
+- Small-output and unrecognized commands need no wrapping
+
+See `~/.agent/skills/ztk/SKILL.md`.

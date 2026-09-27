@@ -49,3 +49,15 @@ snapshot into the skill's local store and are recalled with
 - Never delete episodic or semantic memory entries — archive them.
 - Never modify `.agent/protocols/permissions.md`.
 - Prefer using the `agentic-stack` tools for all repository-level learning and recall chores.
+
+<!-- ztk-manual-use:v1 -->
+## ztk output compression (manual)
+
+This harness has no ztk pre-tool hook. For commands likely to produce large
+output, wrap them manually:
+
+- `ztk run <command>` — compress output before it reaches context
+- `ztk run --raw <command>` — exact output when another command will parse it
+- Small-output and unrecognized commands need no wrapping
+
+See `~/.agent/skills/ztk/SKILL.md`.

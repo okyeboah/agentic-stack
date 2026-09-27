@@ -1,11 +1,16 @@
 {
   "name": "cursor",
-  "description": "Cursor — .cursor/rules instruction text. No executable hooks; AI runs commands from project root cwd.",
+  "description": "Cursor — .cursor/rules instruction text plus ztk shell-output compression hook.",
   "files": [
     {
       "src": ".cursor/rules/agentic-stack.mdc",
       "dst": ".cursor/rules/agentic-stack.mdc",
       "merge_policy": "overwrite"
+    },
+    {
+      "src": ".cursor/hooks.json",
+      "dst": ".cursor/hooks.json",
+      "merge_policy": "merge_or_alert"
     }
   ]
 }

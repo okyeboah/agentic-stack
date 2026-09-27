@@ -76,4 +76,5 @@ ztk stats
 - Gemini CLI: `.gemini/settings.json` BeforeTool -> `ztk gemini-rewrite`
 
 To change hook flags, remove the ztk entry first — `ztk init` refuses
-in-place migration. Backups of pre-ztk configs: `~/.ztk-install-backup-20260830/`.
+in-place migration and creates no backups, so copy the hook files aside
+yourself before changing flags.

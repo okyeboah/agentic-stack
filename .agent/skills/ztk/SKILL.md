@@ -57,6 +57,15 @@ Unrecognized commands are recorded in `~/.local/share/ztk/savings.log`
 Compression policy is baked into the binary (no config file); adding a
 command class (docker first) is an upstream change.
 
+## Output integrity (what agents see)
+
+Compressed output reaches the agent with no marker in 0.3.1 - agents
+mistake it for tool failure and attempt bypasses (absolute binary paths).
+Interim mitigations are shipped fleet-side: the standing-conventions block
+(rule 3) and the recall corpus. The upstream ask - a one-line
+`[ztk: compressed N->M tokens (P%)]` marker on every compressed output -
+is drafted in the fleet's docs/upstream-ztk-transparency.md.
+
 ## Inspect savings
 
 ```bash

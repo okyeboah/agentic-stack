@@ -43,13 +43,19 @@ def available():
     return True, interpreter
 
 
-def ask(requests, checkpoint=DEFAULT_CHECKPOINT, batch_size=16, timeout=None):
+def ask(requests, checkpoint=None, batch_size=16, timeout=None):
     """Answer [{state, questions}, ...]; returns aligned result dicts or None.
+
+    Checkpoint resolution: explicit argument, then $LAYA_CHECKPOINT, then
+    DEFAULT_CHECKPOINT. The env var must be honored HERE, not only in the
+    worker: this client always writes a checkpoint into the payload, so a
+    worker-side fallback alone can never see it.
 
     Each result is {"answers": {qid: answer}} or {"error": str} — a bad
     question poisons only its own slot. None means the batch as a whole
     failed (no venv, timeout, crash, non-JSON); the reason goes to stderr.
     """
+    checkpoint = checkpoint or os.environ.get("LAYA_CHECKPOINT") or DEFAULT_CHECKPOINT
     ok, where = available()
     if not ok:
         print(f"(laya unavailable: {where})", file=sys.stderr)

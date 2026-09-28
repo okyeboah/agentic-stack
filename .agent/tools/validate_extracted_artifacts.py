@@ -202,7 +202,7 @@ def validate_workflow(
             kind, artifact_id = match.groups()
             if kind in {"protocol", "tool", "workflow", "template"} and artifact_id not in registry_ids:
                 errors.append(f"{label} step {step_id} references unregistered artifact: {artifact_id}")
-            if kind == "skill" and not (repo_root / ".agent/skills" / artifact_id / "SKILL.md").is_file():
+            if kind == "skill" and not (repo_root / ".agent/skills" / artifact_id / "SKILL.md").is_file():  # brain-paths-allow: validates against the SOURCE repo's own pre-consolidation brain
                 errors.append(f"{label} step {step_id} references missing skill: {artifact_id}")
     for value, count in Counter(step_ids).items():
         if count > 1:
@@ -341,7 +341,7 @@ def validate_registry(registry_path: Path, repo_root: Path) -> list[str]:
             continue
         _load_object(repo_root / artifact["path"], f"schema {artifact_id}", errors)
 
-    agents_path = repo_root / ".agent/AGENTS.md"
+    agents_path = repo_root / ".agent/AGENTS.md"  # brain-paths-allow: reads the SOURCE repo's own pre-consolidation brain
     agents_text = agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
     for protocol_id in (
         "fleet-management",

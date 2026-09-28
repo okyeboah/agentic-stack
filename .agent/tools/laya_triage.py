@@ -5,25 +5,31 @@
     python3 ~/.agent/tools/laya_triage.py --limit 10 --json
 
 Read-only. The dream cycle stages candidates mechanically (auto_dream.py);
-the heuristic prefilter (validate.py) catches only exact duplicates; the
-subjective judgment is the host agent's. This tool adds a local
-typed-decision model (laya-mlx, Apple Silicon, no cloud) that scores each
-candidate BEFORE the reviewer looks, so review time goes to the candidates
-that deserve it. It is advisory only: graduate.py and reject.py remain the
-decision path, and an unscored candidate is not a blocker.
+the subjective judgment is the host agent's. This tool adds a local
+typed-decision model (laya-mlx, Apple Silicon, no cloud) that answers the
+ONE question it is validated at — near-duplicate against the closest
+accepted lesson — plus a conservative genericness check. Advisory only:
+graduate.py and reject.py remain the decision path, and an unscored
+candidate is not a blocker.
 
-Per candidate, up to three decisions (~13 ms each, batched in one process):
-  quality    score 0-3  durability as a durable lesson (junk..essential rule)
-  generic    noul       P(claim too vague to act on)
-  duplicate  noul       P(claim restates its closest accepted lesson) —
-                        asked only when some lesson shares >=1 content word
+Question set (2026-09-23 calibration pass; see DECISIONS.md for the data):
+  duplicate  noul  P(says the same thing as the closest accepted lesson) —
+                   asked only when some lesson shares >=1 content word.
+                   Validated on labeled pairs: duplicates 0.86-0.97,
+                   non-duplicates <=0.12.
+  generic    noul  P(claim too vague to act on), asked on the claim ALONE —
+                   never with the paired lesson in the state, which measurably
+                   poisons the answer (same claim: 0.26 alone vs 0.88 paired).
+                   Conservative by design: fires >= 0.60, low recall.
+  quality   REMOVED — every rubric variant inverted on labeled fixtures
+                   (vague advice scored as useful guidance); the checkpoint
+                   cannot judge lesson quality, so the tool no longer asks.
 
 Advisory mapping (first match wins):
-  quality < 1.0         -> junk            (not worth review time)
-  P(generic) >= 0.6     -> generic
-  P(duplicate) >= 0.75  -> near-duplicate  (of the named lesson)
-  quality >= 2.0        -> priority        (review these first)
-  otherwise             -> review
+  P(duplicate) >= 0.75   -> near-duplicate  (of the named lesson)
+  P(generic)   >= 0.60   -> generic
+  cluster_size >= 2      -> priority        (mechanical: dream-cycle evidence)
+  otherwise              -> review
 
 Exit codes: 0 scored (or nothing staged), 2 laya environment unavailable.
 """
@@ -39,27 +45,19 @@ sys.path.insert(0, os.path.join(BASE, "harness"))
 from text import word_set  # noqa: E402
 
 CANDIDATES = os.path.join(BASE, "memory", "candidates")
-CLAIM_CHARS = 300          # per claim in the state sent to Laya (max_len is 512 tokens)
+CLAIM_CHARS = 300          # per claim in a state sent to Laya (max_len is 512 tokens)
 OVERLAP_WORDS = 1          # min shared content words before the duplicate question fires
 GENERIC_P = 0.6
 DUPLICATE_P = 0.75
-JUNK_QUALITY = 1.0
-PRIORITY_QUALITY = 2.0
+PRIORITY_CLUSTER = 2
 
-QUESTIONS = {
-    "quality": {
-        "type": "score",
-        "instructions": "Rate this candidate as a durable, reusable agent lesson.",
-        "criteria": ["junk session noise", "marginal", "useful practice", "essential durable rule"],
-    },
-    "generic": {
-        "type": "noul",
-        "instructions": "Is this candidate too vague or context-free to be an actionable lesson? true if generic.",
-    },
-    "duplicate": {
-        "type": "noul",
-        "instructions": "Is the candidate claim a near-duplicate or restatement of the existing lesson? true if duplicate.",
-    },
+Q_DUPLICATE = {
+    "type": "noul",
+    "instructions": "Does the candidate say the same thing as the existing lesson?",
+}
+Q_GENERIC = {
+    "type": "noul",
+    "instructions": "This lesson claim is too vague to act on.",
 }
 
 
@@ -97,71 +95,79 @@ def closest_lesson(claim, lessons):
 
 
 def build_requests(cands, lessons):
-    """One {state, questions} per candidate; returns (requests, plans).
+    """Laya requests + plans. Two requests per PAIRED candidate (the generic
+    and duplicate questions need different states — see module docstring),
+    one per unpaired candidate.
 
-    plans[i] carries what row i was asked, so the answer parser needs no
-    re-derivation: (candidate, paired_lesson_or_None).
+    plans[i] carries what request i was asked: (candidate, kind, paired).
     """
     requests, plans = [], []
     for cand in cands:
         claim = (cand.get("claim") or "")[:CLAIM_CHARS]
         paired = closest_lesson(claim, lessons)
-        questions = {"quality": QUESTIONS["quality"], "generic": QUESTIONS["generic"]}
-        state = f"Candidate lesson claim: \"{claim}\""
+        requests.append({"state": f'Candidate lesson claim: "{claim}"',
+                         "questions": {"generic": Q_GENERIC}})
+        plans.append((cand, "generic", None))
         if paired is not None:
-            questions["duplicate"] = QUESTIONS["duplicate"]
-            state += (f"\nExisting accepted lesson: "
-                      f"\"{(paired.get('claim') or '')[:CLAIM_CHARS]}\"")
-        requests.append({"state": state, "questions": questions})
-        plans.append((cand, paired))
+            state = (f'Candidate lesson claim: "{claim}"\n'
+                     f'Existing accepted lesson: "{(paired.get("claim") or "")[:CLAIM_CHARS]}"')
+            requests.append({"state": state, "questions": {"duplicate": Q_DUPLICATE}})
+            plans.append((cand, "duplicate", paired))
     return requests, plans
 
 
-def advisory(quality, generic_p, dup_p):
+def advisory(cand, generic_p, dup_p):
     """First-match-wins label; advisory only, the reviewer decides."""
-    if quality is not None and quality < JUNK_QUALITY:
-        return "junk"
-    if generic_p is not None and generic_p >= GENERIC_P:
-        return "generic"
     if dup_p is not None and dup_p >= DUPLICATE_P:
         return "near-duplicate"
-    if quality is not None and quality >= PRIORITY_QUALITY:
+    if generic_p is not None and generic_p >= GENERIC_P:
+        return "generic"
+    if (cand.get("cluster_size") or 1) >= PRIORITY_CLUSTER:
         return "priority"
     return "review"
 
 
 def score(plans, results):
-    """Merge worker answers into per-candidate rows, one per plan entry."""
-    rows = []
-    for (cand, paired), res in zip(plans, results):
-        row = {
-            "id": cand.get("id"),
-            "claim": (cand.get("claim") or "")[:80],
-            "cluster_size": cand.get("cluster_size", 1),
-            "quality": None,
-            "p_generic": None,
-            "p_duplicate": None,
-            "duplicate_of": None,
-            "advisory": "unscored",
-        }
+    """Merge worker answers into one row per candidate."""
+    rows = {}
+    order = []
+    for (cand, kind, paired), res in zip(plans, results):
+        cid = cand.get("id") or id(cand)
+        if cid not in rows:
+            order.append(cid)
+            rows[cid] = {
+                "id": cand.get("id"),
+                "claim": (cand.get("claim") or "")[:80],
+                "cluster_size": cand.get("cluster_size", 1),
+                "p_generic": None,
+                "p_duplicate": None,
+                "duplicate_of": None,
+                "advisory": "unscored",
+                "_cand": cand,
+            }
+        row = rows[cid]
         answers = res.get("answers") if isinstance(res, dict) else None
         if isinstance(res, dict) and res.get("error"):
-            row["error"] = res["error"]
+            row[f"error_{kind}"] = res["error"]
         elif isinstance(answers, dict):
-            q = answers.get("quality")
-            if isinstance(q, dict) and isinstance(q.get("score"), (int, float)):
-                row["quality"] = round(float(q["score"]), 3)
-            g = answers.get("generic")
-            if isinstance(g, dict) and isinstance(g.get("noul"), (int, float)):
-                row["p_generic"] = round(float(g["noul"]), 4)
-            d = answers.get("duplicate")
-            if isinstance(d, dict) and isinstance(d.get("noul"), (int, float)):
-                row["p_duplicate"] = round(float(d["noul"]), 4)
-                if paired is not None:
-                    row["duplicate_of"] = paired.get("id")
-            row["advisory"] = advisory(row["quality"], row["p_generic"], row["p_duplicate"])
-        rows.append(row)
-    return rows
+            if kind == "generic":
+                g = answers.get("generic")
+                if isinstance(g, dict) and isinstance(g.get("noul"), (int, float)):
+                    row["p_generic"] = round(float(g["noul"]), 4)
+            else:
+                d = answers.get("duplicate")
+                if isinstance(d, dict) and isinstance(d.get("noul"), (int, float)):
+                    row["p_duplicate"] = round(float(d["noul"]), 4)
+                    if paired is not None:
+                        row["duplicate_of"] = paired.get("id")
+    out = []
+    for cid in order:
+        row = rows[cid]
+        scored = row["p_generic"] is not None or row["p_duplicate"] is not None
+        row["advisory"] = (advisory(row["_cand"], row["p_generic"], row["p_duplicate"])
+                           if scored else "unscored")
+        out.append({k: v for k, v in row.items() if k != "_cand"})
+    return out
 
 
 def summarize(rows):
@@ -169,7 +175,30 @@ def summarize(rows):
     for row in rows:
         counts[row["advisory"]] = counts.get(row["advisory"], 0) + 1
     return {"total": len(rows), "advisory_counts": counts,
-            "review_order": ["priority", "review", "near-duplicate", "generic", "junk"]}
+            "review_order": ["priority", "review", "near-duplicate", "generic"]}
+
+
+def log_triage(rows, meta):
+    """Record the triage event in episodic memory — the adoption surface.
+
+    Same shape as recall.py/laya_rerank.py logging: writes an episodic event,
+    never a candidate. Logging must never fail the triage itself.
+    """
+    try:
+        sys.path.insert(0, os.path.join(BASE, "tools"))
+        from memory_reflect import reflect  # noqa: E402
+        summary = summarize(rows)
+        detail = {
+            "candidates": summary["total"],
+            "advisory_counts": summary["advisory_counts"],
+            "model": meta.get("model"),
+            "score_seconds": meta.get("score_seconds"),
+            "via": os.environ.get("LAYA_VIA") or "manual",
+        }
+        reflect("laya-triage", "triage:review-queue",
+                json.dumps(detail, ensure_ascii=False), success=True, importance=5)
+    except Exception as e:
+        print(f"(warning: triage log failed: {e})", file=sys.stderr)
 
 
 def format_pretty(rows, meta):
@@ -179,16 +208,16 @@ def format_pretty(rows, meta):
     if not rows:
         lines.append("  (nothing staged)")
         return "\n".join(lines)
-    lines.append(f"{'id':<16}{'advisory':<15}{'quality':>8}{'P(dup)':>8}{'P(gen)':>8}  claim")
+    lines.append(f"{'id':<16}{'advisory':<15}{'cluster':>8}{'P(dup)':>8}{'P(gen)':>8}  claim")
     for row in rows:
-        q = "-" if row["quality"] is None else f"{row['quality']:.2f}"
         d = "-" if row["p_duplicate"] is None else f"{row['p_duplicate']:.2f}"
         g = "-" if row["p_generic"] is None else f"{row['p_generic']:.2f}"
-        lines.append(f"{row['id'] or '?':<16}{row['advisory']:<15}{q:>8}{d:>8}{g:>8}  {row['claim']}")
+        lines.append(f"{row['id'] or '?':<16}{row['advisory']:<15}"
+                     f"{row['cluster_size']:>8}{d:>8}{g:>8}  {row['claim']}")
         if row["duplicate_of"]:
             lines.append(f"{'':<47}-> near-duplicate of lesson {row['duplicate_of']}")
-        if row.get("error"):
-            lines.append(f"{'':<47}-> error: {row['error']}")
+        for key in sorted(k for k in row if k.startswith("error_")):
+            lines.append(f"{'':<47}-> {key}: {row[key]}")
     summary = summarize(rows)
     lines.append("")
     lines.append("review order: " + ", ".join(
@@ -206,6 +235,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None,
                         help="Score only the first N staged candidates.")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of a table.")
+    parser.add_argument("--quiet", action="store_true", help="Don't log to episodic.")
     args = parser.parse_args()
 
     import laya_client
@@ -231,11 +261,13 @@ def main():
         return 2
     if len(results) != len(plans):
         print(f"laya_triage: worker returned {len(results)} results for {len(plans)} "
-              "candidates; candidates untouched.", file=sys.stderr)
+              "requests; candidates untouched.", file=sys.stderr)
         return 2
 
     rows = score(plans, results)
     meta = {"model": laya_client.DEFAULT_CHECKPOINT, "score_seconds": score_seconds}
+    if not args.quiet:
+        log_triage(rows, meta)
 
     if args.json:
         print(json.dumps({"meta": meta, "candidates": rows, "summary": summarize(rows)},

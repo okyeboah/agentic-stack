@@ -28,6 +28,11 @@ invocation. Humans edit this file; the agent does not.
 - Delete entries from episodic or semantic memory (archive, don't delete).
 
 ## Approved external domains
+  # Google Fonts vendoring (print-design-pipeline fetch_google_fonts.py):
+  # one build-time fetch of OFL-licensed families + their woff2 files,
+  # so renders stay deterministic and offline afterwards
+- `fonts.googleapis.com`
+- `fonts.gstatic.com`
   # OpenRouter model catalog + auth/key quota checks (or-free-models skill)
 - `openrouter.ai`
 - `api.github.com`

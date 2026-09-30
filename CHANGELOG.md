@@ -945,3 +945,15 @@ always pointing at a real, installable artifact.
 [0.3.0]: https://github.com/codejunkie99/agentic-stack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/codejunkie99/agentic-stack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/codejunkie99/agentic-stack/releases/tag/v0.1.0
+
+## [v0.19.3] - 2026-09-30
+
+- fix(hooks): bound the episodic append lock (EPISODIC_LOCK_TIMEOUT_S, default
+  5s) — a wedged flock holder no longer turns concurrent-session appends into
+  60s hook timeouts with the entry lost (fork PR #16).
+- fix(claude-code): ported upstream episodic redaction (29478d2) and
+  error-size (3848f27) fixes — persisted paths normalized to project- or
+  ~-relative form, content excerpts replaced by char counts, failed tools
+  store error_chars instead of error text (fork PR #18).
+- permissions: approve fonts.googleapis.com + fonts.gstatic.com for
+  print-design font vendoring (fork PR #17).

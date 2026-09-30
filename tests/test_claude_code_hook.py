@@ -490,6 +490,60 @@ def test_settings_json():
 
 # ── summary ───────────────────────────────────────────────────────────────────
 
+def test_redaction(mod):
+    section("12. Redaction — no raw home path or content persists (upstream 29478d2 + 3848f27)")
+    home = os.path.expanduser("~")
+    raw_old = "STRIPE_SECRET_KEY = 'sk-test-abc123def456'  # production credential"
+    raw_new = "STRIPE_SECRET_KEY = os.environ['STRIPE_SECRET_KEY']"
+
+    rc, entry, stderr = run_hook({
+        "tool_name": "Edit",
+        "tool_input": {
+            "file_path": os.path.join(home, "dev-repo", "somerepo", "src", "pay.py"),
+            "old_string": raw_old,
+            "new_string": raw_new,
+        },
+        "tool_response": {"output": "ok", "exit_code": 0, "error": ""},
+    })
+    if entry is None:
+        fail("no entry written for Edit case")
+    else:
+        blob = json.dumps(entry)
+        checks = [
+            ("no raw home path anywhere in the entry", home not in blob),
+            ("path carried in ~-relative form", "~/dev-repo" in blob),
+            ("no raw old_string content", raw_old not in blob),
+            ("no raw new_string content", raw_new not in blob),
+            ("edit sizes persisted as chars",
+             "old_string_chars" in blob and "new_string_chars" in blob),
+        ]
+        for label, passed in checks:
+            if passed:
+                ok(f"  edit: {label}")
+            else:
+                fail(f"  edit: {label}", blob[:300])
+
+    rc, entry, stderr = run_hook({
+        "tool_name": "Read",
+        "tool_input": {"file_path": os.path.join(home, "dev-repo", "proj", "secrets.env")},
+        "tool_response": {"is_error": True, "output": "",
+                          "error": f"Error: {home}/dev-repo/proj/secrets.env: Permission denied"},
+    })
+    if entry is None:
+        fail("no entry written for failed Read case")
+    else:
+        blob = json.dumps(entry)
+        checks = [
+            ("no raw home path anywhere in the entry", home not in blob),
+            ("error text reduced to size", "Permission denied" not in blob and "error_chars" in blob),
+        ]
+        for label, passed in checks:
+            if passed:
+                ok(f"  failure: {label}")
+            else:
+                fail(f"  failure: {label}", blob[:300])
+
+
 def main():
     print(f"\n\033[1magentic-stack claude-code hook validation\033[0m")
     print(f"project root: {PROJECT_ROOT}")
@@ -509,6 +563,7 @@ def main():
     test_reflection_non_empty(mod)
     test_full_write(mod)
     test_failure_write(mod)
+    test_redaction(mod)
     test_dream_cycle()
     test_memory_reflect_pain_flag()
     test_post_execution_pain_param()

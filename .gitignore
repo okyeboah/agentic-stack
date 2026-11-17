@@ -50,3 +50,6 @@ venv/
 .agent/skills/tldraw/snapshots/
 .agent/skills/tldraw/snapshots.jsonl
 .stele-context/
+
+# Dream/harvest cycle lockfile — runtime state, never committed.
+.agent/memory/.dream.lock

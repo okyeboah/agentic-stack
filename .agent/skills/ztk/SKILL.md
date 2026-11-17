@@ -27,10 +27,16 @@ ztk run --raw <cmd>   # exact output, no compression
 
 Exit codes propagate: an exit=2 after `ztk run grep ...` is usually the
 command's own failure (grep uses 2 for errors), not a refusal. True
-refusals print `ztk: command denied by permission rules` and target only
-string-eval shells: `sh -c`, `zsh -c`, `eval`. Hooks never rewrite those,
-so refusal only happens on explicit `ztk run`; run the command unwrapped
-instead.
+refusals print `ztk: command denied by permission rules` and fire on any
+command CONTAINING a suspicious-shell token: backticks, `$()`, `<()`,
+newlines, a standalone `&`, or an `eval`/`-c` wrapper - even when the token
+sits inside a quoted argument like an `--body` value. Since 2026-11-17
+(codejunkie99/ztk#17) the harness hooks pass such commands through
+UNREWRITTEN, so the refusal only happens on explicit `ztk run`; run the
+command unwrapped instead. Mutating gh verbs (`gh pr merge`, `gh issue
+comment`, `gh label add`, `gh api --method POST`, and the rest of the write
+table) are never rewritten either: they reach the harness shell with their
+real output and errors visible.
 
 ## Keeping the savings up (measured 2026-09-21)
 

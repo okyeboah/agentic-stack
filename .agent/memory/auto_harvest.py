@@ -39,6 +39,7 @@ the candidates directory. Fails closed on a missing corpus (loud error) and
 open on nothing else - this is a maintenance tool, not a hook.
 """
 import os
+import subprocess
 import sys
 import datetime
 
@@ -207,6 +208,71 @@ def harvest(candidates_dir, semantic_dir, max_graduations=50, dry_run=False):
     }
 
 
+GITIGNORE = """\
+episodic/
+logs/
+__pycache__/
+.dream.lock
+.dream.lock
+"""
+
+
+def snapshot_memory(home: str) -> str:
+    """Commit the memory corpus to its own local git store (issue #570, G11).
+
+    The memory home is append-only by convention and had no recovery path at
+    all: an accidental write was permanent. The store lives at
+    `<home>/memory/.git` - personal data, never pushed anywhere, so the
+    auto_dream rule against unattended `git commit` (which targets work
+    repositories) does not apply here. Churn that never needs history
+    (episodic telemetry, caches, the cycle lock) is ignored. Best effort:
+    every failure prints and returns, never raises into the harvest result.
+    """
+    memory_dir = os.path.join(home, "memory")
+    if not os.path.isdir(os.path.join(memory_dir, ".git")):
+        if not _git_run(memory_dir, "init", "-q"):
+            return ""
+    ignore_path = os.path.join(memory_dir, ".gitignore")
+    if not os.path.exists(ignore_path):
+        try:
+            with open(ignore_path, "w", encoding="utf-8") as handle:
+                handle.write(GITIGNORE)
+        except OSError:
+            pass
+    if not _git_run(memory_dir, "add", "-A"):
+        return ""
+    try:
+        status = subprocess.run(
+            ["git", "-C", memory_dir, "status", "--porcelain"],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"snapshot: status failed: {exc}", file=sys.stderr)
+        return ""
+    if not status.stdout.strip():
+        return ""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    stamp = now.strftime("%Y-%m-%dT%H:%MZ")
+    if _git_run(memory_dir, "commit", "-q", "-m", f"memory snapshot {stamp}"):
+        return stamp
+    return ""
+
+
+def _git_run(memory_dir: str, *args: str) -> bool:
+    try:
+        done = subprocess.run(
+            ["git", "-C", memory_dir, *args],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"snapshot: git {' '.join(args[:2])} failed: {exc}",
+              file=sys.stderr)
+        return False
+    if done.returncode != 0:
+        detail = (done.stderr or done.stdout).strip()[:160]
+        print(f"snapshot: git {' '.join(args[:2])}: {detail}", file=sys.stderr)
+        return False
+    return True
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(
@@ -242,6 +308,11 @@ def main():
     print(f"left staged: {len(summary['skipped'])}")
     if summary["rendered"]:
         print(f"re-rendered: {summary['rendered']}")
+
+    if not args.dry_run:
+        committed = snapshot_memory(home)
+        if committed:
+            print(f"memory snapshot committed: {committed}")
     return 0
 
 

@@ -28,7 +28,7 @@ Output modes:
   --json                 machine-readable
   --quiet                no logging (useful for scripting / tests)
 """
-import argparse, json, os, re, sys
+import argparse, datetime, json, os, re, sys
 
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(BASE, "harness"))
@@ -355,6 +355,24 @@ def format_pretty(intent, result, meta):
     return "\n".join(lines)
 
 
+def _mark_recall(intent: str) -> None:
+    """Record the run so the recall gate credits this session (issue #570).
+
+    Recall runs carry no session id, so the gate matches markers by time.
+    Best-effort and append-only; failure never breaks recall.
+    """
+    try:
+        log_dir = os.path.join(BASE, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "intent": (intent or "")[:200]}
+        with open(os.path.join(log_dir, "recall_markers.jsonl"), "a",
+                  encoding="utf-8") as f:
+            f.write(json.dumps(row) + '\n')
+    except OSError:
+        pass
+
+
 def main():
     p = argparse.ArgumentParser(description="Surface relevant lessons for an intent.")
     p.add_argument("intent", help="Free-text description of what you're about to do.")
@@ -371,6 +389,7 @@ def main():
     rerank = None if args.rerank == "none" else args.rerank
     result, meta = recall(args.intent, top_k=args.top, rerank=rerank,
                           rerank_pool=args.rerank_pool)
+    _mark_recall(args.intent)
     if not args.quiet:
         log_recall(args.intent, result, meta)
 

@@ -36,6 +36,92 @@ def _lesson_id(candidate):
     return "lesson_" + hashlib.md5(claim.encode()).hexdigest()[:12]
 
 
+#: Cosine at or above which a neighbour is annotated as a likely restatement.
+#: Calibrated 2026-11-19: a distilled cwd rule scored 0.675 against its sharper
+#: accepted twin, related-but-distinct cwd lessons 0.644-0.648, and a
+#: same-domain-but-different rule 0.668. The bands overlap, so this never
+#: decides anything: it labels the neighbours the reviewer must read.
+NEAR_DUPLICATE_THRESHOLD = 0.66
+NEAR_DUPLICATE_POOL = 25
+EMBED_MODEL = "nomic-embed-text"
+EMBED_HOST = "http://127.0.0.1:11434"
+
+
+def _accepted_lessons(lessons):
+    """Latest row per id, accepted and not superseded."""
+    latest = {}
+    for lesson in lessons:
+        lid = lesson.get("id")
+        if lid:
+            latest[lid] = lesson
+    retired = set()
+    for lesson in latest.values():
+        target = lesson.get("supersedes")
+        if target and lesson.get("status") == "accepted":
+            retired.add(target)
+    return [l for lid, l in latest.items()
+            if l.get("status") == "accepted" and lid not in retired]
+
+
+def _cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def _embed(texts):
+    """Embeddings from the local embedding model, or None when it cannot run."""
+    import urllib.request
+    request = urllib.request.Request(
+        EMBED_HOST + "/api/embed",
+        data=json.dumps({"model": EMBED_MODEL, "input": texts}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        body = json.loads(urllib.request.urlopen(request, timeout=30).read())
+    except Exception:
+        return None
+    vectors = body.get("embeddings") if isinstance(body, dict) else None
+    if not isinstance(vectors, list) or len(vectors) != len(texts):
+        return None
+    return vectors
+
+
+def near_duplicates(claim, lessons, limit=3):
+    """Accepted lessons that restate `claim`, nearest first; [] when unknown.
+
+    A lexical prefilter picks the pool (embeddings for 1278 lessons in one
+    call would be minutes), then the embedding cosine ranks it. The score is
+    a label, not a verdict: the bands for "paraphrase" and "same domain,
+    different rule" overlap, so the caller shows the list and the reviewer
+    decides. Fail-open: an unavailable model returns [], so graduation never
+    blocks on infrastructure.
+    """
+    claim = str(claim or "").strip()
+    if not claim:
+        return []
+    pool = _accepted_lessons(lessons)
+    if not pool:
+        return []
+    claim_words = set(str(claim).lower().split())
+
+    def overlap(lesson):
+        words = set(str(lesson.get("claim") or "").lower().split())
+        return len(claim_words & words)
+
+    pool.sort(key=overlap, reverse=True)
+    pool = pool[:NEAR_DUPLICATE_POOL]
+    vectors = _embed([claim] + [str(l.get("claim") or "") for l in pool])
+    if vectors is None:
+        return []
+    base = vectors[0]
+    scored = [(_cosine(base, vector), lesson)
+              for vector, lesson in zip(vectors[1:], pool)]
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return scored[:limit]
+
+
 def main():
     p = argparse.ArgumentParser(description="Graduate a staged candidate.")
     p.add_argument("candidate_id")
@@ -46,6 +132,9 @@ def main():
                    help="Accept as provisional (probationary) rather than full.")
     p.add_argument("--supersedes", default=None,
                    help="ID of an existing lesson this replaces.")
+    p.add_argument("--near-duplicate-ack", action="store_true",
+                   help="Confirm the near-duplicate list was read and this "
+                        "claim is a distinct rule, not a paraphrase.")
     args = p.parse_args()
 
     cand_path = os.path.join(CANDIDATES, f"{args.candidate_id}.json")
@@ -149,6 +238,32 @@ def main():
         print(f"ERROR: candidate fails heuristic check: {check['reasons']}",
               file=sys.stderr)
         sys.exit(2)
+
+    # Paraphrase check. The heuristic above catches EXACT duplicates only, and
+    # on 2026-11-19 a distilled cwd rule graduated beside its sharper accepted
+    # twin, then had to be retracted. No cosine threshold separates a
+    # paraphrase from a same-domain sibling reliably, so the check does not
+    # pretend to: it shows the nearest accepted lessons. A candidate the
+    # DISTILLER produced needs an explicit ack or a supersedes target before it
+    # may land, because that is the class with proven risk; a hand-written one
+    # only gets the note.
+    if not args.supersedes:
+        neighbours = near_duplicates(cand.get("claim"), load_lessons(SEMANTIC))
+        distilled = "distill" in str(cand.get("source") or "") or "distill" in str(
+            args.reviewer or "")
+        if neighbours:
+            print("nearest accepted lessons:", file=sys.stderr)
+            for score, lesson in neighbours:
+                label = "likely restatement" if score >= NEAR_DUPLICATE_THRESHOLD else "same area"
+                print(f"  {score:.3f}  {lesson.get('id')}  [{label}]  "
+                      f"{(lesson.get('claim') or '')[:110]}", file=sys.stderr)
+        if distilled and neighbours and not args.near_duplicate_ack:
+            print("ERROR: a distilled claim needs the neighbour list read. "
+                  "Either:\n"
+                  "  --supersedes <id>       replace an existing lesson, or\n"
+                  "  --near-duplicate-ack    confirm this is a distinct rule",
+                  file=sys.stderr)
+            sys.exit(4)
 
     # Atomicity: write to semantic memory BEFORE moving the candidate.
     # If we crash mid-graduation, the staged candidate remains and the

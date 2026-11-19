@@ -214,9 +214,15 @@ def list_candidates(candidates_dir, status="staged", sort_by="priority"):
             continue
         try:
             with open(path) as f:
-                out.append(json.load(f))
+                record = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
+        # `suppressed.json` and other state files share this directory. A
+        # record with no status is not a candidate: counting one made
+        # REVIEW_QUEUE.md report "Pending: 1" over an empty list.
+        if not isinstance(record, dict) or not record.get("status"):
+            continue
+        out.append(record)
 
     if sort_by == "priority":
         out.sort(key=candidate_priority, reverse=True)

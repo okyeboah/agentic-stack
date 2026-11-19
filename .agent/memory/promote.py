@@ -114,6 +114,13 @@ def write_candidates(patterns, candidates_dir):
         # matters is whether evidence or the specific blocker shifted.
         if prev_loc in ("rejected", "graduated"):
             last = (prev.get("decisions") or [])[-1] if prev.get("decisions") else {}
+            # A noise rejection is permanent. auto_harvest refuses event
+            # telemetry whatever its cluster size, so re-staging on new
+            # evidence re-runs a decision that cannot change: the 2026-11-19
+            # queue carried "FAILURE in zcode: High-stakes op FAILED" with
+            # rejections=3 through exactly this path.
+            if str(last.get("notes") or "").startswith("event_log_noise:"):
+                continue
             prev_evidence = set(last.get("evidence_snapshot", []))
             new_evidence = set(p.get("evidence_ids", []))
             # Only NEW supporting episodes count as a change worth re-review.

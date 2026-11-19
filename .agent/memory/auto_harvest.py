@@ -39,6 +39,7 @@ the candidates directory. Fails closed on a missing corpus (loud error) and
 open on nothing else - this is a maintenance tool, not a hook.
 """
 import os
+import re
 import subprocess
 import sys
 import datetime
@@ -61,15 +62,34 @@ from validate import heuristic_check  # noqa: E402
 NOISE_FAMILIES = (
     ("High-stakes op completed", "high_stakes_op_event"),
     ("High-stakes op failed", "high_stakes_op_event"),
-    ("FAILURE in ", "harness_failure_event"),
+    ("High-stakes op FAILED", "high_stakes_op_event"),
     ("Now working on", "workspace_status_event"),
     ("Completed todo", "todo_event"),
     ("Ran: ", "command_event"),
-    ("Wrote ", "command_event"),
-    ("Edited ", "command_event"),
+    ("Command failed: ", "command_event"),
     ("Tool Agent completed", "subagent_event"),
     ("Tool Agent failed", "subagent_event"),
+    ("Tool Bash completed", "subagent_event"),
+    ("todo-update: ", "todo_event"),
+    ("task: ", "tool_event"),
+    ("fetch: ", "tool_event"),
+    ("tool:", "tool_event"),
 )
+
+#: File-write shapes: the verb alone is not enough, because prose also opens
+#: with it ("Wrote the migration before reading the trigger..."). A write event
+#: names a path, so the second token must look like one.
+PATH_VERBS = (
+    ("Wrote ", "command_event"),
+    ("Edited ", "command_event"),
+    ("Read ", "command_event"),
+)
+_PATH_LIKE = re.compile(r"^(/|~/|\./|\.\./|[\w.-]+/|\S+\.[A-Za-z0-9]{1,8}$)")
+
+#: on_failure.py wraps a reflection as "FAILURE in <harness>: <text>". One
+#: prefix is stripped and the remainder is judged, so a wrapped real failure
+#: survives and a wrapped event is still caught.
+_FAILURE_WRAPPER = re.compile(r"^FAILURE in [\w.-]+:\s*")
 
 REVIEWER = "auto-harvest"
 MIN_CLUSTER = 3
@@ -81,11 +101,28 @@ def memory_home():
 
 
 def noise_reason(claim):
-    """The noise family for a claim, or None when it reads like a lesson."""
-    text = (claim or "").strip()
+    """The noise family for a claim, or None when it reads like a lesson.
+
+    Two shapes need care, and both were wrong before the ported mechanical test
+    caught them (2026-11-19):
+
+      * A write event names a path; prose also opens with the same verb, so the
+        second token decides. "Wrote the migration before reading the trigger"
+        is a lesson, "Wrote /path/x.md (161 lines)" is an event.
+      * on_failure.py wraps reflections one prefix deep as
+        "FAILURE in <harness>: <text>", so the wrapper is stripped once and the
+        remainder judged. Without that, every wrapped lesson was rejected as a
+        harness failure while every wrapped event needed a second pass.
+    """
+    text = _FAILURE_WRAPPER.sub("", (claim or "").strip(), count=1)
     for prefix, reason in NOISE_FAMILIES:
         if text.startswith(prefix):
             return reason
+    for prefix, reason in PATH_VERBS:
+        if text.startswith(prefix):
+            rest = text[len(prefix):].strip()
+            if _PATH_LIKE.match(rest):
+                return reason
     return None
 
 

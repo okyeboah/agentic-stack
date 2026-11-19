@@ -64,6 +64,7 @@ MIN_IMPORTANCE = 5
 #: command logs has nothing to distil: the 2026-11-17 audit proved command
 #: telemetry becomes no candidate a reviewer would accept.
 MIN_SIGNAL = 2
+MIN_FIXED = 1
 SIGNAL_PAIN = 5
 MAX_EPISODES_IN_PROMPT = 20
 MAX_CLAIMS = 8
@@ -400,9 +401,12 @@ def distill(candidates_dir, entries, model=DEFAULT_MODEL, host=DEFAULT_HOST,
     """One pass. Returns a summary dict; never raises on model failures."""
     episodes = select_window(entries, limit=limit, since=since)
     signal = [e for e in episodes if is_signal(e) and not is_transient(e)]
+    fixed = [e for e in signal
+             if str((e.get("fix") or {}).get("kind")) in ("edited", "replaced")]
     summary = {
         "window": len(episodes),
         "signal": len(signal),
+        "fixed": len(fixed),
         "claims": [],
         "staged": [],
         "skipped": [],
@@ -410,17 +414,18 @@ def distill(candidates_dir, entries, model=DEFAULT_MODEL, host=DEFAULT_HOST,
     if len(signal) < MIN_SIGNAL:
         summary["skipped"].append(("window", "too_few_signal_episodes"))
         return summary
+    if len(fixed) < MIN_FIXED:
+        summary["skipped"].append(("window", "too_few_fixed_episodes"))
+        return summary
 
-    # Curation order: genuine failures, then other high-pain signal, then the
-    # remainder. The 2026-11-19 real-window run showed why - newest-first put
-    # high-pain SUCCESS logs (telemetry) in all 20 slots and the model
-    # correctly answered {}. A repeated failure is the newest-worthy signal
-    # there is.
-    ordered = [e for e in episodes
-               if str(e.get("result") or "") == "failure" and not is_transient(e)]
-    ordered += [e for e in episodes
-                if str(e.get("result") or "") != "failure" and is_signal(e)]
+    # Curation order: failures with a fix delta first. The evaluation split
+    # (2026-11-19, issue #570) showed the model only distils a reviewer's rule
+    # when the window contains it, and a fix delta puts cause and fix into the
+    # prompt by construction. Then other failures, then the remainder.
+    ordered = fixed
+    ordered += [e for e in signal if e not in fixed]
     ordered += [e for e in episodes if not is_signal(e)]
+    used = ordered[:MAX_EPISODES_IN_PROMPT]
     used = ordered[:MAX_EPISODES_IN_PROMPT]
     reply = caller(model, host, build_prompt(used), num_predict)
     claims = parse_claims(reply)
@@ -514,7 +519,8 @@ def main(argv=None):
         if lock_fd is not None:
             os.close(lock_fd)
 
-    print(f"window: {summary['window']} episodes, {summary['signal']} signal")
+    print(f"window: {summary['window']} episodes, {summary['signal']} signal, "
+          f"{summary['fixed']} with a fix delta")
     print(f"claims: {len(summary['claims'])}")
     print(f"staged: {len(summary['staged'])}")
     for cid, claim in summary["staged"][:10]:

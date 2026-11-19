@@ -1,6 +1,41 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agent/harness/hooks/claude_code_session.py\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agent/harness/hooks/claude_code_session.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.agent/harness/hooks/conventions_first.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v ztk >/dev/null 2>&1 || exit 0; ztk rewrite --skip-permissions"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash|Edit|MultiEdit|Write|Task|TodoWrite",
@@ -18,33 +53,27 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agent/harness/hooks/claude_code_session.py\""
+          },
+          {
+            "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.agent/memory/auto_dream.py\""
           }
         ]
       }
     ],
-    "PreToolUse": [
+    "SessionEnd": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "command -v ztk >/dev/null 2>&1 || exit 0; ztk rewrite --skip-permissions"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agent/harness/hooks/claude_code_session.py\"",
+            "timeout": 10
           }
         ]
       }
     ]
   },
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.agent/harness/hooks/conventions_first.py\""
-          }
-        ]
-      }
-    ],
   "permissions": {
     "deny": [
       "Bash(git push --force*)",

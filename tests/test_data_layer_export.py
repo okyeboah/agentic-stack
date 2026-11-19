@@ -148,6 +148,60 @@ class DataLayerExportTest(unittest.TestCase):
             self.assertNotIn("do not export", exported)
             self.assertIn("agentic-loop", exported)
 
+    def test_redacts_loop_event_status_and_decision_outside_the_allowed_sets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            events = work / ".agent" / "runtime" / "loops"
+            events.mkdir(parents=True)
+            (events / "events.jsonl").write_text(
+                "\n".join(
+                    json.dumps(row)
+                    for row in [
+                        {
+                            "run_id": "run-a",
+                            "loop": "ci-sweeper",
+                            "event": "<script>exfiltrate this</script>",
+                        },
+                        {
+                            "run_id": "run-b",
+                            "loop": "ci-sweeper",
+                            "decision": "leaked prompt content here",
+                        },
+                        {"run_id": "run-c", "loop": "ci-sweeper", "event": "completed"},
+                        # Real values the runner emits: breaker stop uses the
+                        # run status as the event name; process.py statuses.
+                        {"run_id": "run-d", "loop": "ci-sweeper", "event": "exhausted"},
+                        {
+                            "run_id": "run-e",
+                            "loop": "ci-sweeper",
+                            "event": "maker_finished",
+                            "status": "timed_out",
+                        },
+                        {
+                            "run_id": "run-f",
+                            "loop": "ci-sweeper",
+                            "event": "phase_started",
+                            "status": "running",
+                        },
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = self.run_export(work, "--window", "all", "--date", "2026-04-25")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            out = work / ".agent" / "data-layer" / "exports" / "2026-04-25"
+            exported = (out / "agent-events.jsonl").read_text()
+            self.assertNotIn("exfiltrate", exported)
+            self.assertNotIn("leaked prompt content", exported)
+            self.assertNotIn("<script>", exported)
+            self.assertIn("completed", exported)
+            rows = [json.loads(line) for line in exported.splitlines()]
+            self.assertIn("exhausted", {row["action"] for row in rows})
+            self.assertIn("timed_out", {row["result"] for row in rows})
+            self.assertIn("phase_started", {row["action"] for row in rows})
+            self.assertIn("running", {row["result"] for row in rows})
+
     def test_succeeds_with_empty_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)

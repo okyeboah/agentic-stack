@@ -340,6 +340,103 @@ def test_failure_write(mod):
     for label, passed in checks:
         (ok if passed else fail)(f"  entry.{label}")
 
+def test_no_raw_content_or_paths_persisted(mod):
+    section("10b. Privacy — no raw content, no raw absolute paths persisted")
+
+    home_file = os.path.join(os.path.expanduser("~"), "supabase", "secrets.env")
+    payload = {
+        "tool_name": "Edit",
+        "tool_input": {
+            "file_path": home_file,
+            "old_string": "STRIPE_SECRET_KEY=sk_live_topsecretvalue12345",
+            "new_string": "STRIPE_SECRET_KEY=sk_live_rotatedvalue67890",
+        },
+        "tool_response": {"output": "", "exit_code": 0, "error": ""},
+    }
+    rc, entry, stderr = run_hook(payload)
+    if entry is None:
+        fail("no entry written for privacy-check Edit case")
+        return
+    ok("privacy-check Edit entry written")
+
+    blob = json.dumps(entry)
+    checks = [
+        ("no raw home directory in entry",
+         os.path.expanduser("~") not in blob),
+        ("action uses normalized path, not raw home path",
+         home_file not in entry.get("action", "")),
+        ("reflection does not contain old secret value",
+         "sk_live_topsecretvalue12345" not in blob),
+        ("reflection does not contain new secret value",
+         "sk_live_rotatedvalue67890" not in blob),
+        ("detail carries char counts, not the raw strings",
+         "old_string_chars" in entry.get("detail", "")
+         or "chars ->" in entry.get("reflection", "")),
+    ]
+    for label, passed in checks:
+        (ok if passed else fail)(f"  entry.{label}")
+
+    write_payload = {
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": os.path.join(os.path.expanduser("~"), "notes", "private.md"),
+            "content": "API_KEY=super-secret-value-should-not-leak\n",
+        },
+        "tool_response": {"output": "", "exit_code": 0, "error": ""},
+    }
+    rc, entry, stderr = run_hook(write_payload)
+    if entry is None:
+        fail("no entry written for privacy-check Write case")
+        return
+    blob = json.dumps(entry)
+    checks = [
+        ("Write entry has no raw home path",
+         os.path.expanduser("~") not in blob),
+        ("Write entry does not contain file content",
+         "super-secret-value-should-not-leak" not in blob),
+    ]
+    for label, passed in checks:
+        (ok if passed else fail)(f"  entry.{label}")
+
+    # Fallback branch (no explicit handler) and tool output.
+    cases = [
+        ("NotebookEdit fallback", {
+            "tool_name": "NotebookEdit",
+            "tool_input": {
+                # Short on purpose: the old fallback dumped inputs < 80 chars.
+                "notebook_path": os.path.join(os.path.expanduser("~"), "n"),
+                "new_source": "K=nb-sec",
+            },
+            "tool_response": {"output": "", "exit_code": 0, "error": ""},
+        }, "nb-sec"),
+        ("Read output", {
+            "tool_name": "Read",
+            "tool_input": {"file_path": os.path.join(os.path.expanduser("~"), ".env")},
+            "tool_response": {"output": "DB_PASSWORD=read-output-secret", "exit_code": 0},
+        }, "read-output-secret"),
+        ("failed Read error", {
+            "tool_name": "Read",
+            "tool_input": {"file_path": os.path.join(os.path.expanduser("~"), ".env")},
+            "tool_response": {"output": "", "is_error": True,
+                              "error": "cannot parse: DB_PASSWORD=read-error-secret"},
+        }, "read-error-secret"),
+    ]
+    for label, case_payload, secret in cases:
+        rc, entry, stderr = run_hook(case_payload)
+        if entry is None:
+            fail(f"no entry written for privacy-check {label} case")
+            continue
+        blob = json.dumps(entry)
+        (ok if os.path.expanduser("~") not in blob else fail)(
+            f"  entry.{label} has no raw home path")
+        (ok if secret not in blob else fail)(
+            f"  entry.{label} does not contain raw content")
+
+    outside = os.path.join(os.sep, "nonexistent-root", "bob", "secrets.env")
+    (ok if mod._normalize_path(outside) == "<external>" else fail)(
+        "  _normalize_path labels paths outside project and home <external>")
+
+
 def test_dream_cycle():
     section("11. Dream cycle produces staged candidates from rich entries")
     # Use a universally high-stakes command so importance=9 / pain_score=5
@@ -564,6 +661,7 @@ def main():
     test_full_write(mod)
     test_failure_write(mod)
     test_redaction(mod)
+    test_no_raw_content_or_paths_persisted(mod)
     test_dream_cycle()
     test_memory_reflect_pain_flag()
     test_post_execution_pain_param()

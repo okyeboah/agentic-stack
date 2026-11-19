@@ -872,8 +872,8 @@ re-run the full verification set after changes.
 Use the known feature and primary worktrees explicitly:
 
 ```bash
-FEATURE=/Users/arnavdas/Documents/Codex/2026-07-18/codejunkie99-agentic-stack-https-github-com/work/agentic-stack-v0.19.0
-PRIMARY=/Users/arnavdas/Documents/Codex/2026-07-18/codejunkie99-agentic-stack-https-github-com/repo
+FEATURE=/Users/example/Documents/Codex/2026-07-18/codejunkie99-agentic-stack-https-github-com/work/agentic-stack-v0.19.0
+PRIMARY=/Users/example/Documents/Codex/2026-07-18/codejunkie99-agentic-stack-https-github-com/repo
 git -C "$FEATURE" fetch origin --prune --tags
 remote_sha=$(git -C "$FEATURE" rev-parse origin/master)
 base_sha=$(git -C "$FEATURE" merge-base HEAD origin/master)

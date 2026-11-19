@@ -30,8 +30,8 @@ lesson would be violated by your intended action, stop and explain why.
 ### Skills
 Skill discovery: grep `.agent/skills/_manifest.jsonl` for your trigger and
 load only that `SKILL.md`. NEVER read `_index.md` (~11k tokens) or
-`_manifest.jsonl` (~43k) whole —
-whose triggers match the task. Don't skip this — skills carry constraints
+`_manifest.jsonl` (~43k) whole; load only skills whose
+triggers match the task. Don't skip this — skills carry constraints
 the permissions file doesn't cover.
 
 ### Workspace

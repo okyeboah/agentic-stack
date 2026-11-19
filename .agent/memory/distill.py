@@ -28,15 +28,6 @@ chars, done_reason=length) and returns empty content, and `think: false` is
 ignored by this build. Ask for it explicitly with --model gpt-oss:20b and a
 --num-predict of 3000 or more.
 
-MEASURED RESULT, 2026-11-19: distill_eval.py measured both local models
-against accepted lessons and their recovered evidence windows. qwen2.5:7b
-scored 0/6 at cosine 0.75 (mean 0.44, 3.3 s per case, and 0.35 with wider
-input); gpt-oss:20b at 3000 tokens also scored 0/6 (mean 0.56, 57 s per
-case). Both produced confident rules unrelated to the accepted lesson, so a
-wrap-up pass would fill the queue with plausible nonsense for a human to
-reject. Distillation is therefore OPT-IN at wrap-up (DISTILL_ON_WRAPUP=1),
-and any change to this conclusion needs a new eval run, not an opinion.
-
 FAIL-OPEN: an unreachable model, a malformed reply, or a timeout stages
 nothing and exits 0. Distillation must never be why a wrap-up fails.
 """
@@ -74,12 +65,6 @@ MIN_IMPORTANCE = 5
 #: telemetry becomes no candidate a reviewer would accept.
 MIN_SIGNAL = 2
 SIGNAL_PAIN = 5
-#: A wrap-up that loads a 5-13 GB model on a machine already under pressure
-#: makes the session end slower than the session. The mlx-lab rule is 25%
-#: free memory before a run; below that the pass reports and exits without a
-#: model call. Set DISTILL_MEMORY_GATE=0 to override on a machine that knows
-#: better.
-FREE_MEMORY_FRACTION = 0.25
 MAX_EPISODES_IN_PROMPT = 20
 MAX_CLAIMS = 8
 TIMEOUT_S = 120
@@ -98,28 +83,59 @@ SYSTEM_PROMPT = (
 )
 
 
+def load_causes(home=None):
+    """Failure annotations by timestamp, {} when the pass has not run."""
+    path = os.path.join(home or memory_home(), "memory", "episodic",
+                        "failure_causes.jsonl")
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and row.get("ts"):
+                    out[row["ts"]] = row
+    except OSError:
+        pass
+    return out
+
+
+def attach_causes(entries, causes):
+    """Copy each entry with its `cause` and `fix` attached, in place.
+
+    The annotation lives in a sidecar so the 94 MB episodic log is never
+    rewritten; merging by timestamp keeps the two files independent and lets
+    the annotator be re-run or backfilled without touching capture.
+    """
+    for entry in entries:
+        found = causes.get(entry.get("timestamp"))
+        if not found:
+            continue
+        entry["cause"] = {k: found.get(k) for k in
+                          ("signature", "mechanism", "evidence")}
+        entry["fix"] = found.get("fix")
+    return entries
+
+
+def is_transient(entry):
+    """A failure retried with the identical command: an environment blip.
+
+    Distilling it would teach "retry", which the agent already does. The 2026-11-19
+    backfill found 340 of 4,782 failures in this class, most of them harness cwd
+    resets, so leaving them in the prompt spends the window on non-lessons.
+    """
+    fix = entry.get("fix") or {}
+    return str(fix.get("kind") or "") == "identical"
+
+
 def memory_home():
     """Where the corpus lives; AGENT_MEMORY_HOME overrides for testing."""
     return os.environ.get("AGENT_MEMORY_HOME") or BASE
-
-
-def log_run(outcome, **fields):
-    """Append one decision row so a skipped pass is visible after the fact.
-
-    The wrap-up discards stdout, so without this line a memory-gate skip, a
-    no-signal window and a model failure all look identical: nothing happened.
-    Append-only, best effort.
-    """
-    try:
-        path = os.path.join(memory_home(), "logs", "distill.jsonl")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        row = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-               "outcome": outcome}
-        row.update(fields)
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(row) + "\n")
-    except OSError:
-        pass
 
 
 def _rows(path):
@@ -146,36 +162,6 @@ def _ts(value):
         return datetime.fromisoformat(str(value)).timestamp()
     except (TypeError, ValueError):
         return 0.0
-
-
-def free_memory_fraction():
-    """Fraction of RAM free right now, or None when it cannot be read.
-
-    Darwin reports free pages through vm_stat, and "free" for a model load
-    means free + inactive + speculative: inactive pages are reclaimable under
-    pressure. Other platforms return None, which the caller treats as allowed.
-    """
-    import subprocess
-    try:
-        total = int(subprocess.run(["sysctl", "-n", "hw.memsize"],
-                                   capture_output=True, text=True,
-                                   timeout=5).stdout.strip())
-        out = subprocess.run(["vm_stat"], capture_output=True, text=True,
-                             timeout=5).stdout
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return None
-    page_size = 4096
-    match = re.search(r"page size of (\d+) bytes", out)
-    if match:
-        page_size = int(match.group(1))
-    usable = 0
-    for label in ("Pages free", "Pages inactive", "Pages speculative"):
-        found = re.search(label + r":\s+(\d+)\.", out)
-        if found:
-            usable += int(found.group(1))
-    if total <= 0 or usable <= 0:
-        return None
-    return (usable * page_size) / total
 
 
 def is_signal(entry):
@@ -217,13 +203,22 @@ def _render_episode(index, entry):
     def cut(value, n):
         return str(value or "").replace("\n", " ")[:n]
 
-    return (
+    lines = [
         f"{index}. [{cut(entry.get('timestamp'), 19)}] skill={cut(entry.get('skill'), 24)}"
         f" result={cut(entry.get('result'), 12)} pain={cut(entry.get('pain_score'), 3)}"
-        f" importance={cut(entry.get('importance'), 3)}\n"
-        f"   action: {cut(entry.get('action'), 160)}\n"
-        f"   reflection: {cut(entry.get('reflection'), 240)}"
-    )
+        f" importance={cut(entry.get('importance'), 3)}",
+        f"   action: {cut(entry.get('action'), 160)}",
+        f"   reflection: {cut(entry.get('reflection'), 240)}",
+    ]
+    cause = entry.get("cause") or {}
+    if cause.get("mechanism"):
+        lines.append(f"   cause: {cut(cause.get('signature'), 20)} - "
+                     f"{cut(cause.get('mechanism'), 200)}")
+    fix = entry.get("fix") or {}
+    if fix.get("kind"):
+        detail = "; ".join(fix.get("classes") or []) or fix.get("kind")
+        lines.append(f"   fix: {cut(fix.get('kind'), 12)} - {cut(detail, 160)}")
+    return "\n".join(lines)
 
 
 def build_prompt(episodes):
@@ -404,7 +399,7 @@ def distill(candidates_dir, entries, model=DEFAULT_MODEL, host=DEFAULT_HOST,
             since=None, num_predict=DEFAULT_NUM_PREDICT):
     """One pass. Returns a summary dict; never raises on model failures."""
     episodes = select_window(entries, limit=limit, since=since)
-    signal = [e for e in episodes if is_signal(e)]
+    signal = [e for e in episodes if is_signal(e) and not is_transient(e)]
     summary = {
         "window": len(episodes),
         "signal": len(signal),
@@ -414,7 +409,6 @@ def distill(candidates_dir, entries, model=DEFAULT_MODEL, host=DEFAULT_HOST,
     }
     if len(signal) < MIN_SIGNAL:
         summary["skipped"].append(("window", "too_few_signal_episodes"))
-        log_run("skipped-no-signal", window=len(episodes), signal=len(signal))
         return summary
 
     # Curation order: genuine failures, then other high-pain signal, then the
@@ -422,19 +416,12 @@ def distill(candidates_dir, entries, model=DEFAULT_MODEL, host=DEFAULT_HOST,
     # high-pain SUCCESS logs (telemetry) in all 20 slots and the model
     # correctly answered {}. A repeated failure is the newest-worthy signal
     # there is.
-    ordered = [e for e in episodes if str(e.get("result") or "") == "failure"]
+    ordered = [e for e in episodes
+               if str(e.get("result") or "") == "failure" and not is_transient(e)]
     ordered += [e for e in episodes
                 if str(e.get("result") or "") != "failure" and is_signal(e)]
     ordered += [e for e in episodes if not is_signal(e)]
     used = ordered[:MAX_EPISODES_IN_PROMPT]
-    if os.environ.get("DISTILL_MEMORY_GATE") != "0":
-        free = free_memory_fraction()
-        if free is not None and free < FREE_MEMORY_FRACTION:
-            summary["skipped"].append(
-                ("memory", f"below_free_memory_gate:{free:.2f}"))
-            log_run("skipped-memory-gate", free=round(free, 3),
-                    gate=FREE_MEMORY_FRACTION, signal=len(signal))
-            return summary
     reply = caller(model, host, build_prompt(used), num_predict)
     claims = parse_claims(reply)
     summary["claims"] = claims
@@ -536,12 +523,6 @@ def main(argv=None):
         print(f"skipped: {len(summary['skipped'])}")
         for key, why in summary["skipped"][:8]:
             print(f"  {why}: {key}")
-    gated = any(str(why).startswith(("below_free_memory_gate", "too_few_signal"))
-                for _, why in summary["skipped"])
-    if not args.dry_run and not gated:
-        log_run("distilled", window=summary["window"],
-                signal=summary["signal"], claims=len(summary["claims"]),
-                staged=len(summary["staged"]), model=args.model)
     return 0
 
 

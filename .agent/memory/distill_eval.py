@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import distill
+from validate import word_set
 
 HIT = 0.75
 EMBED_MODEL = "nomic-embed-text"
@@ -94,20 +95,37 @@ def main(argv=None):
                         help="episodes either side of the evidence")
     parser.add_argument("--num-predict", type=int, default=distill.DEFAULT_NUM_PREDICT)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--min-recall", type=float, default=0.0,
+                        help="only cases whose window already contains this "
+                             "fraction of the lesson's key terms: isolates "
+                             "model reading from a starved input")
     args = parser.parse_args(argv)
 
     home = distill.memory_home()
     lessons = _accepted(os.path.join(home, "memory", "semantic", "lessons.jsonl"))
     episodes = _episodes(os.path.join(home, "memory", "episodic",
                                       "AGENT_LEARNINGS.jsonl"))
+    # The annotation sidecar is what carries cause and fix; without this merge
+    # the eval measures the old telemetry-only render and not the current one.
+    distill.attach_causes(episodes, distill.load_causes(home))
     index_by_ts = {e["timestamp"]: i for i, e in enumerate(episodes)}
 
     usable = []
     for lesson in lessons:
         stamps = [t for t in (lesson.get("evidence_ids") or [])
                   if isinstance(t, str) and t in index_by_ts]
-        if stamps:
-            usable.append((lesson, stamps))
+        if not stamps:
+            continue
+        if args.min_recall > 0:
+            window = _window(episodes, index_by_ts, stamps, args.context)
+            text = distill.build_prompt(window).lower()
+            terms = {t for t in word_set(lesson["claim"]) if len(t) > 4}
+            if not terms:
+                continue
+            recall = len({t for t in terms if t in text}) / len(terms)
+            if recall < args.min_recall:
+                continue
+        usable.append((lesson, stamps))
     if not usable:
         print("ERROR: no accepted lesson has recoverable evidence")
         return 1
@@ -116,7 +134,7 @@ def main(argv=None):
 
     results = []
     print(f"model={args.model} cases={len(sample)} context={args.context} "
-          f"num_predict={args.num_predict}")
+          f"num_predict={args.num_predict} min_recall={args.min_recall}")
     for number, (lesson, stamps) in enumerate(sample, 1):
         window = _window(episodes, index_by_ts, stamps, args.context)
         started = time.time()
@@ -159,6 +177,7 @@ def main(argv=None):
                 "mean_cosine": round(mean, 3),
                 "mean_latency_s": round(total / len(results), 1),
                 "num_predict": args.num_predict, "context": args.context,
+                "min_recall": args.min_recall,
                 "detail": results,
             }) + "\n")
         print(f"recorded: {out}")
